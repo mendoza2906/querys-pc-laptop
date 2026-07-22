@@ -116,7 +116,7 @@ inner join man.personas p on d.id_persona = p.id
 left join aca.clase_contenido cc on c.id_clase = cc.id_clase
 left join aca.contenidos ccc on ccc.id_contenidos = cc.id_contenido
 left join aca.contenidos cp on cp.id_contenidos = ccc.id_contenido_padre
-where p.identificacion='0960242659' and c.id_periodo_academico =136
+where p.identificacion='2400254286' and c.id_periodo_academico =136
 
 
 --Doctora Lascano

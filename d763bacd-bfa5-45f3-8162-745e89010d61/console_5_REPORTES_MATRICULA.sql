@@ -3799,5 +3799,243 @@ from man.personas p
          left join man.lugar cr on cr.id_lugar = p.id_canton_nacionalidad
 where p.estado='AC' and eo.estado='A' and om.estado='A' and em.estado = 'A'
   and  mg.id_periodo_academico in (136) and eo.id_oferta_modalidad in (103,104) and cr.id_lugar = 491
-order by o.descripcion,p.apellidos,p.nombres
+order by o.descripcion,p.apellidos,p.nombres;
 
+
+--listado de estudiantes curso 5/2 entrenamiento deportivo
+-- Listado de mejores estudiantes por facultad
+WITH promedios AS
+(
+    SELECT om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres, ca.id_componente_aprendizaje,
+           ca.codigo, AVG(CAST(ec.calificacion AS DECIMAL(10, 2))) AS promedio_ciclo1
+    FROM man.personas p
+    INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+    INNER JOIN aca.estudiante_oferta eop ON eop.id_estudiante_oferta_padre = eo.id_estudiante_oferta
+    INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = eo.id_periodo_academico
+    INNER JOIN aca.tipo_estado_estudiante tee ON tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+    INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+    INNER JOIN aca.estudiante_calificacion ec ON ec.id_estudiante_oferta = eo.id_estudiante_oferta
+    INNER JOIN aca.acta_calificacion ac ON ac.id_acta_calificacion = ec.id_acta_calificacion
+    INNER JOIN aca.calificacion_general cg ON cg.id_calificacion_general = ac.id_calificacion_general
+    INNER JOIN aca.componente_aprendizaje ca ON ca.id_componente_aprendizaje = ec.id_componente_aprendizaje
+    WHERE cg.id_periodo_academico = 136 AND ec.estado = 'A'
+    GROUP BY om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres, ca.id_componente_aprendizaje,
+             ca.codigo
+),
+ranking AS
+(
+    SELECT facultad, carrera, identificacion, apellidos, nombres, id_componente_aprendizaje,
+           codigo, promedio_ciclo1,
+           ROW_NUMBER() OVER (PARTITION BY facultad ORDER BY promedio_ciclo1 DESC) AS puesto
+    FROM promedios
+)
+SELECT facultad, carrera, identificacion, apellidos, nombres, id_componente_aprendizaje,
+       codigo, promedio_ciclo1, puesto
+FROM ranking
+WHERE puesto = 1
+ORDER BY facultad;
+
+ SELECT om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres, AVG(CAST(EA.promedio AS DECIMAL(10, 2))) AS promedio
+    FROM man.personas p
+    INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+    INNER JOIN aca.estudiante_oferta eop ON eop.id_estudiante_oferta_padre = eo.id_estudiante_oferta
+    INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = eo.id_periodo_academico
+    INNER JOIN aca.tipo_estado_estudiante tee ON tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+    INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+    inner join aca.estudiante_matricula em on em.id_estudiante_oferta = eo.id_estudiante_oferta
+    inner join aca.matricula_general mg on mg.id_matricula_general = em.id_matricula_general
+    INNER JOIN aca.estudiante_asignatura ea on ea.id_estudiante_matricula = em.id_estudiante_matricula
+    inner join aca.asignatura_aprendizaje aa on ea.id_asignatura_aprendizaje = aa.id_asignatura_aprendizaje
+    inner join aca.malla_asignatura ma on aa.id_malla_asignatura = ma.id_malla_asignatura
+    inner join aca.asignatura a on ma.id_asignatura = a.id_asignatura
+    WHERE mg.id_periodo_academico in (95,96) AND em.estado='A' and ea.estado='A'
+    GROUP BY om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres
+
+ SELECT om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres,a.descripcion as asignatura
+    FROM man.personas p
+    INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+    INNER JOIN aca.estudiante_oferta eop ON eop.id_estudiante_oferta_padre = eo.id_estudiante_oferta
+    INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = eo.id_periodo_academico
+    INNER JOIN aca.tipo_estado_estudiante tee ON tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+    INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+    inner join aca.estudiante_matricula em on em.id_estudiante_oferta = eo.id_estudiante_oferta
+    inner join aca.matricula_general mg on mg.id_matricula_general = em.id_matricula_general
+    INNER JOIN aca.estudiante_asignatura ea on ea.id_estudiante_matricula = em.id_estudiante_matricula
+    inner join aca.asignatura_aprendizaje aa on ea.id_asignatura_aprendizaje = aa.id_asignatura_aprendizaje
+    inner join aca.malla_asignatura ma on aa.id_malla_asignatura = ma.id_malla_asignatura
+    inner join aca.asignatura a on ma.id_asignatura = a.id_asignatura
+    WHERE em.estado='A' and ea.estado='A' and ea.codigo_estado_matricula in ('TER','SEG')
+    GROUP BY om.facultad, om.carrera, p.identificacion, p.apellidos, p.nombres, a.descripcion
+
+--sin restriccion por segunda o tercera
+BEGIN
+    DECLARE @id_periodo_actual INT = 136;
+
+    WITH Matriculados AS
+    (
+        SELECT em.id_estudiante_matricula, em.estado,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas)) AS valorMatriculados
+        FROM aca.estudiante_matricula em
+        INNER JOIN aca.estudiante_oferta eo ON eo.id_estudiante_oferta = em.id_estudiante_oferta
+        INNER JOIN aca.malla m ON m.id_malla = eo.id_malla
+        INNER JOIN aca.estudiante_asignatura ea ON ea.id_estudiante_matricula = em.id_estudiante_matricula
+        INNER JOIN aca.asignatura_aprendizaje aa ON aa.id_asignatura_aprendizaje = ea.id_asignatura_aprendizaje
+        INNER JOIN aca.malla_asignatura ma ON ma.id_malla_asignatura = aa.id_malla_asignatura
+        WHERE em.estado = 'A' AND ea.estado = 'A'
+        GROUP BY em.id_estudiante_matricula, em.estado
+    ),
+    MallaNivel AS
+    (
+        SELECT m.id_malla, ma.id_nivel,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas)) AS valorMalla,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas) * 0.6) AS valorSesenta
+        FROM aca.malla_asignatura ma
+        INNER JOIN aca.malla m ON m.id_malla = ma.id_malla
+        WHERE ma.estado = 'A'
+        GROUP BY m.id_malla, ma.id_nivel
+    ),
+    PromedioAnual AS
+    (
+        SELECT eo.id_persona, eo.id_oferta_modalidad,
+               AVG(CAST(ea.promedio AS DECIMAL(10, 2))) AS promedioAnual
+        FROM aca.estudiante_oferta eo
+        INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+        INNER JOIN aca.matricula_general mg ON mg.id_matricula_general = em.id_matricula_general
+        INNER JOIN aca.estudiante_asignatura ea ON ea.id_estudiante_matricula = em.id_estudiante_matricula
+        INNER JOIN aca.asignatura_aprendizaje aa ON aa.id_asignatura_aprendizaje = ea.id_asignatura_aprendizaje
+        INNER JOIN aca.malla_asignatura ma ON ma.id_malla_asignatura = aa.id_malla_asignatura
+        INNER JOIN aca.asignatura a ON a.id_asignatura = ma.id_asignatura
+        WHERE mg.id_periodo_academico IN (95, 96) AND eo.estado = 'A' AND em.estado = 'A'
+              AND ea.estado = 'A'
+        GROUP BY eo.id_persona, eo.id_oferta_modalidad
+        HAVING COUNT(DISTINCT mg.id_periodo_academico) = 2
+    ),
+    EstudiantesActuales AS
+    (
+        SELECT DISTINCT eo.id_persona, eo.id_oferta_modalidad, p.identificacion, p.apellidos, p.nombres,
+               eo.numero_matricula, om.facultad, om.carrera, om.sedeCorta, te.descripcion AS tipoEstudiante,
+               tie.descripcion AS tipoIngreso, em.id_nivel AS semestre, mtr.valorMatriculados,
+               mn.valorMalla, mn.valorSesenta
+        FROM man.personas p
+        INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+        INNER JOIN aca.tipo_ingreso_estudiante tie ON tie.id_tipo_ingreso_estudiante = eo.id_tipo_ingreso_estudiante
+        INNER JOIN aca.tipo_estudiante te ON te.id_tipo_estudiante = eo.id_tipo_estudiante
+        INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+        INNER JOIN aca.matricula_general mg ON mg.id_matricula_general = em.id_matricula_general
+        INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+        LEFT JOIN Matriculados mtr ON mtr.id_estudiante_matricula = em.id_estudiante_matricula
+        LEFT JOIN MallaNivel mn ON mn.id_malla = eo.id_malla AND mn.id_nivel = em.id_nivel
+        WHERE p.estado = 'AC' AND eo.estado = 'A' AND em.estado = 'A'
+              AND mg.id_periodo_academico = @id_periodo_actual
+              AND mtr.valorMatriculados >= mn.valorSesenta
+    ),
+    Ranking AS
+    (
+        SELECT ea.id_persona, ea.facultad, ea.carrera, ea.identificacion, ea.apellidos, ea.nombres,
+               ea.numero_matricula, ea.tipoEstudiante, ea.tipoIngreso, ea.semestre, ea.sedeCorta,
+               ea.valorMatriculados, ea.valorMalla, ea.valorSesenta, pa.promedioAnual,
+               DENSE_RANK() OVER
+               (
+                   PARTITION BY ea.id_oferta_modalidad
+                   ORDER BY pa.promedioAnual DESC
+               ) AS puesto
+        FROM EstudiantesActuales ea
+        INNER JOIN PromedioAnual pa ON pa.id_persona = ea.id_persona
+                                   AND pa.id_oferta_modalidad = ea.id_oferta_modalidad
+    )
+    SELECT id_persona, facultad, carrera, identificacion, CONCAT(apellidos, ' ', nombres) AS nombresApellidos,
+           numero_matricula, tipoEstudiante, tipoIngreso, semestre, sedeCorta, valorMatriculados,
+           valorMalla, valorSesenta, promedioAnual, puesto
+    FROM Ranking
+    WHERE puesto = 1
+    ORDER BY facultad, carrera, nombresApellidos;
+END;
+
+BEGIN
+    DECLARE @id_periodo_actual INT = 136;
+
+    WITH Matriculados AS
+    (
+        SELECT em.id_estudiante_matricula, em.estado,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas)) AS valorMatriculados
+        FROM aca.estudiante_matricula em
+        INNER JOIN aca.estudiante_oferta eo ON eo.id_estudiante_oferta = em.id_estudiante_oferta
+        INNER JOIN aca.malla m ON m.id_malla = eo.id_malla
+        INNER JOIN aca.estudiante_asignatura ea ON ea.id_estudiante_matricula = em.id_estudiante_matricula
+        INNER JOIN aca.asignatura_aprendizaje aa ON aa.id_asignatura_aprendizaje = ea.id_asignatura_aprendizaje
+        INNER JOIN aca.malla_asignatura ma ON ma.id_malla_asignatura = aa.id_malla_asignatura
+        WHERE em.estado = 'A' AND ea.estado = 'A'
+        GROUP BY em.id_estudiante_matricula, em.estado
+    ),
+    MallaNivel AS
+    (
+        SELECT m.id_malla, ma.id_nivel,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas)) AS valorMalla,
+               SUM(IIF(m.tipo_plan = 'CREDITOS', ma.num_creditos, ma.num_horas) * 0.6) AS valorSesenta
+        FROM aca.malla_asignatura ma
+        INNER JOIN aca.malla m ON m.id_malla = ma.id_malla
+        WHERE ma.estado = 'A'
+        GROUP BY m.id_malla, ma.id_nivel
+    ),
+    PromedioAnual AS
+    (
+        SELECT eo.id_persona, eo.id_oferta_modalidad,
+               AVG(CAST(ea.promedio AS DECIMAL(10, 2))) AS promedioAnual
+        FROM aca.estudiante_oferta eo
+        INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+        INNER JOIN aca.matricula_general mg ON mg.id_matricula_general = em.id_matricula_general
+        INNER JOIN aca.estudiante_asignatura ea ON ea.id_estudiante_matricula = em.id_estudiante_matricula
+        INNER JOIN aca.asignatura_aprendizaje aa ON aa.id_asignatura_aprendizaje = ea.id_asignatura_aprendizaje
+        INNER JOIN aca.malla_asignatura ma ON ma.id_malla_asignatura = aa.id_malla_asignatura
+        INNER JOIN aca.asignatura a ON a.id_asignatura = ma.id_asignatura
+        WHERE mg.id_periodo_academico IN (95, 96) AND eo.estado = 'A' AND em.estado = 'A'
+              AND ea.estado = 'A'
+        GROUP BY eo.id_persona, eo.id_oferta_modalidad
+        HAVING COUNT(DISTINCT mg.id_periodo_academico) = 2
+    ),
+    EstudiantesActuales AS
+    (
+        SELECT DISTINCT eo.id_persona, eo.id_oferta_modalidad, p.identificacion, p.apellidos, p.nombres,
+               eo.numero_matricula, om.facultad, om.carrera, om.sedeCorta, te.descripcion AS tipoEstudiante,
+               tie.descripcion AS tipoIngreso, em.id_nivel AS semestre, mtr.valorMatriculados,
+               mn.valorMalla, mn.valorSesenta
+        FROM man.personas p
+        INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+        INNER JOIN aca.tipo_ingreso_estudiante tie ON tie.id_tipo_ingreso_estudiante = eo.id_tipo_ingreso_estudiante
+        INNER JOIN aca.tipo_estudiante te ON te.id_tipo_estudiante = eo.id_tipo_estudiante
+        INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+        INNER JOIN aca.matricula_general mg ON mg.id_matricula_general = em.id_matricula_general
+        INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+        LEFT JOIN Matriculados mtr ON mtr.id_estudiante_matricula = em.id_estudiante_matricula
+        LEFT JOIN MallaNivel mn ON mn.id_malla = eo.id_malla AND mn.id_nivel = em.id_nivel
+        WHERE p.estado = 'AC' AND eo.estado = 'A' AND em.estado = 'A'
+              AND mg.id_periodo_academico = @id_periodo_actual
+              AND mtr.valorMatriculados >= mn.valorSesenta
+              AND NOT EXISTS
+                  (
+                      SELECT 1
+                      FROM aca.estudiante_oferta eoRep
+                      INNER JOIN aca.estudiante_matricula emRep ON emRep.id_estudiante_oferta = eoRep.id_estudiante_oferta
+                      INNER JOIN aca.estudiante_asignatura eaRep ON eaRep.id_estudiante_matricula = emRep.id_estudiante_matricula
+                      WHERE eoRep.id_persona = eo.id_persona AND eoRep.id_oferta_modalidad = eo.id_oferta_modalidad
+                            AND emRep.estado = 'A' AND eaRep.estado = 'A'
+                            AND eaRep.codigo_estado_matricula IN ('SEG', 'TER')
+                  )
+    ),
+    Ranking AS
+    (
+        SELECT ea.id_persona, ea.id_oferta_modalidad, ea.facultad, ea.carrera, ea.identificacion, ea.apellidos,
+               ea.nombres, ea.numero_matricula, ea.tipoEstudiante, ea.tipoIngreso, ea.semestre, ea.sedeCorta,
+               ea.valorMatriculados, ea.valorMalla, ea.valorSesenta, pa.promedioAnual,
+               DENSE_RANK() OVER (PARTITION BY ea.id_oferta_modalidad ORDER BY pa.promedioAnual DESC) AS puesto
+        FROM EstudiantesActuales ea
+        INNER JOIN PromedioAnual pa ON pa.id_persona = ea.id_persona
+                                   AND pa.id_oferta_modalidad = ea.id_oferta_modalidad
+    )
+    SELECT id_persona, facultad, carrera, identificacion, CONCAT(apellidos, ' ', nombres) AS nombresApellidos,
+           numero_matricula, tipoEstudiante, tipoIngreso, semestre, sedeCorta, valorMatriculados,
+           valorMalla, valorSesenta, promedioAnual, puesto
+    FROM Ranking
+    WHERE puesto< = 2
+    ORDER BY facultad, carrera, nombresApellidos;
+END;
