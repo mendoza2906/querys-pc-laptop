@@ -42,7 +42,7 @@ INNER JOIN aca.matricula_general mg ON mg.id_matricula_general = rne.id_matricul
 INNER JOIN pro.proceso_requisito pr ON pr.id_proceso_requisito= rne.id_proceso_requisito
 where pr.estado= 'A' AND mg.estado= 'A' AND rne.estado= 'A' and mg.id_periodo_academico=127
 
-select * from aca.fn_requisitos_matricula(84888,138)
+select * from aca.fn_requisitos_matricula(8361,136)
 
 select * from pro.proceso_requisito WHERE id_proceso_requisito IN (6,7,24,27,119,140)
 

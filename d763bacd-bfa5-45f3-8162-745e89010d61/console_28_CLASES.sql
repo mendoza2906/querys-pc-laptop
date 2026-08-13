@@ -49,13 +49,27 @@ select distinct --a.descripcion,ma.id_malla_asignatura,c.tema,
 inner join aca.clases_asistencia ca on c.id_clase = ca.id_clase
 inner join aca.malla_asignatura ma on c.id_malla_asignatura = ma.id_malla_asignatura
 inner join aca.asignatura a on ma.id_asignatura = a.id_asignatura
-where c.estado='A' and ca.estado='A' and ca.id_estudiante_oferta =64973 and c.id_malla_asignatura=1517 --and c.id_clase not in (39395)
+where c.estado='A' and ca.estado='A' and ca.id_estudiante_oferta =54960 and c.id_malla_asignatura=1447
+--and c.id_clase not in (39395)
 -- and c.id_clase in(52186)
+
+select distinct
+--     a.descripcion,ma.id_malla_asignatura,c.tema,
+--                 c.fecha,c.observacion,
+                ca.* from aca.clase c
+                              inner join aca.clases_asistencia ca on c.id_clase = ca.id_clase
+                            inner join aca.estudiante_oferta eo on eo.id_estudiante_oferta =ca.id_estudiante_oferta
+                            inner join man.personas p on p.id = eo.id_persona
+                              inner join aca.malla_asignatura ma on c.id_malla_asignatura = ma.id_malla_asignatura
+                              inner join aca.asignatura a on ma.id_asignatura = a.id_asignatura
+where c.estado='A' and ca.estado='A' and c.id_periodo_academico = 136 and p.identificacion='2400470106' and c.fecha>='2026-04-14' and c.fecha<='2026-04-14'
+and ma.id_malla_asignatura= 2800
+
 
 SELECT * FROM  aca.fn_asistencia_clases_por_persona_oferta(48964) as d ORDER BY d.oferta
 
 select id,identificacion,apellidos,nombres from man.personas where identificacion='0957596968'
-select * from mig.listar_carreras_sga where identificacion='0957596968'
+select * from mig.listar_carreras_sga where identificacion='2400255440'
 
 select * from aca.clase where id_periodo_academico = 140 and fecha='2026-01-09' and hora_inicio_horario='07:30:00' and id_modalidad_asignatura in (2,3)
 
@@ -116,7 +130,7 @@ inner join man.personas p on d.id_persona = p.id
 left join aca.clase_contenido cc on c.id_clase = cc.id_clase
 left join aca.contenidos ccc on ccc.id_contenidos = cc.id_contenido
 left join aca.contenidos cp on cp.id_contenidos = ccc.id_contenido_padre
-where p.identificacion='2400254286' and c.id_periodo_academico =136
+where p.identificacion='0943910240' and c.id_periodo_academico =136
 
 
 --Doctora Lascano
@@ -140,7 +154,9 @@ from aca.clase c
         inner join man.personas p on d.id_persona = p.id
          inner join aca.malla_asignatura ma on c.id_malla_asignatura = ma.id_malla_asignatura
          inner join aca.asignatura a on ma.id_asignatura = a.id_asignatura
-where p.identificacion ='0702163668'
+where p.identificacion ='0943910240'
+
+
 
 select * from aca.clase_recuperacion where id_clase = 123860
 

@@ -12,6 +12,19 @@ from aca.malla_asignatura ma
 where ma.estado='A' and m.id_malla = 23
 order by ma.id_nivel
 
+select * from aca.asignatura_compatibilidad
+
+select ac.id_asignatura_compatibilidad,ac.tipo,m.id_malla,ma.id_malla_asignatura,ma.id_nivel,a.id_asignatura,a.descripcion as asignatura,m.descripcion,
+       m1.id_malla,ma1.id_malla_asignatura,ma1.id_nivel,a1.id_asignatura,a1.descripcion as asignatura_compatible,m1.descripcion,ac.estado from aca.asignatura_compatibilidad ac
+inner join aca.malla_asignatura ma on ac.id_malla_asignatura = ma.id_malla_asignatura
+inner join aca.malla m on ma.id_malla = m.id_malla
+inner join aca.asignatura a on a.id_asignatura = ma.id_asignatura
+inner join aca.malla_asignatura ma1 on ac.id_malla_asignatura_comp = ma1.id_malla_asignatura
+inner join aca.malla m1 on ma1.id_malla = m1.id_malla
+inner join aca.asignatura a1 on a1.id_asignatura = ma1.id_asignatura
+where ma.estado='A' and a.estado='A' and m.estado in ('A','P') and ma1.estado='A' and a1.estado='A' and m1.estado in ('A','P')
+  and ac.tipo in ('REDISEÑO_MALLA') and m1.id_malla= 181
+
 select
     distinct ma.id_nivel,a.descripcion as asignatura, ma.id_malla_asignatura, ma.id_malla
     from aca.malla_asignatura ma

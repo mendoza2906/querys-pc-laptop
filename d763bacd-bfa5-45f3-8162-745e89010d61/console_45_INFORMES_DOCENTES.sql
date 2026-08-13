@@ -259,7 +259,6 @@ select * from aca.fn_listar_horas_laboradas_docente(136,7,116,null,6)
 
 
 
-
 select * from aca.informe_mensual where id_informe_mensual = 25
 
 
@@ -282,17 +281,33 @@ select * from  [aca].[fn_get_avance_actividades_docente_xmes](1076, 6, 136) ORDE
 
 select * from aca.fn_listar_horas_laboradas_docente(136,5,38,null,6,2)
 
+select * from aca.fn_listar_horas_laboradas_docente(136,null,20,null,7,2)
+
+select * from aca.fn_listar_horas_laboradas_docente(136,null,96,326,7,2)
+
 select * from aca.fn_listar_horas_laboradas_docente(136,null,null,null,7,2)
 
+SELECT * FROM aca.fn_get_actividades_docente_por_mes( 136,452,7);
 
-select * from aca.fn_listar_horas_laboradas_docente(136,null,null,null,7,3)
+select * from aca.actividad_personal_docente
 
-select * from aca.fn_listar_horas_laboradas_docente(136,null,20,null,7,2)
+
+select * from aca.ofertas_facultad where id_tipo_oferta = 2
 
 select sa.* from aca.seguimiento_actividad sa
                      inner join aca.docente d on d.id_docente = sa.id_docente
                      inner join man.personas p on d.id_persona = p.id
-where p.identificacion='0914040282' and month(sa.fecha_cumplimiento)=7
+where p.identificacion='0960185593' and month(sa.fecha_cumplimiento)=7
+
+select * from aca.actividad_docente_detalle
+
+select * from man.personas where identificacion='2400254286'
+
+select * from aca.seguimiento_actividad sa
+
+select pii.* from man.persona_imagen pii
+         inner join man.personas p on p.id =pii.id_persona
+         where p.identificacion in ('2400239287','2450508250')
 
 select * from aca.informe_mensual where id_docente = 1152 and id_informe_configuracion = 1
 
@@ -528,190 +543,3 @@ select id,apellidos,nombres,identificacion from man.personas where id = 9398
 select sa.* from aca.seguimiento_actividad sa
                      inner join aca.docente d on d.id_docente = sa.id_docente
 where d.id_persona = 18444  and id_periodo_academico = 136 and sa.id_tipo_actividad = 2 and month(fecha_cumplimiento)=7
-
-CREATE OR ALTER FUNCTION [aca].[fn_listar_horas_laboradas_docente]
-(
-    @id_periodo_academico INT,
-    @id_facultad INT,
-    @id_oferta_modalidad INT,
-    @id_docente INT,
-    @mes INT,
-    @id_actividad_personal_docente INT
-)
-RETURNS TABLE
-AS
-RETURN
-(
-    WITH DatosPeriodo AS
-    (
-        SELECT CASE WHEN @mes >= MONTH(pa.fecha_desde) THEN YEAR(pa.fecha_desde) ELSE YEAR(pa.fecha_hasta) END AS anioMes
-        FROM aca.periodo_academico pa
-        WHERE pa.id_periodo_academico = @id_periodo_academico
-    ),
-    ParametrosFecha AS
-    (
-        SELECT DATEFROMPARTS(dp.anioMes, @mes, 1) AS fechaInicio,
-               DATEADD(MONTH, 1, DATEFROMPARTS(dp.anioMes, @mes, 1)) AS fechaFin
-        FROM DatosPeriodo dp
-    ),
-    distributivosVigentes AS
-    (
-        SELECT MAX(aux.id_distributivo_oferta) AS id_distributivo_oferta
-        FROM aca.fn_distributivo_oferta_max(@id_periodo_academico, 'A') aux
-        GROUP BY aux.id_periodo_academico_oferta
-    ),
-    reglamentoActividad AS
-    (
-        SELECT rad.id_actividad_detalle, rad.id_reglamento_actividad,
-               rado.id_reglamento, rado.id_actividad_personal
-        FROM aca.reglamento_actividad_detalle rad
-        INNER JOIN aca.reglamento_actividad_docente rado ON rado.id_reglamento_actividad = rad.id_reglamento_actividad
-        WHERE rad.estado = 'A' AND rado.estado = 'A'
-    ),
-    PersonasConsulta AS
-    (
-        SELECT DISTINCT p.id AS idPersona
-        FROM aca.distributivo_oferta dio
-        INNER JOIN distributivosVigentes dv ON dv.id_distributivo_oferta = dio.id_distributivo_oferta
-        INNER JOIN aca.periodo_academico_oferta pao ON pao.id_periodo_academico_oferta = dio.id_periodo_academico_oferta
-        INNER JOIN aca.ofertas_facultad ofa ON ofa.id_oferta_modalidad = pao.id_oferta_modalidad
-        INNER JOIN aca.distributivo_docente ddo ON ddo.id_distributivo_oferta = dio.id_distributivo_oferta
-        INNER JOIN aca.distributivo_dedicacion dde ON dde.id_distributivo_docente = ddo.id_distributivo_docente
-        INNER JOIN aca.docente d ON d.id_docente = ddo.id_docente
-        INNER JOIN man.personas p ON p.id = d.id_persona
-        INNER JOIN seg.usuarios u ON u.persona_id = p.id
-        WHERE ddo.estado = 'A' AND dio.estado IN ('A','V','D') AND pao.estado = 'A'
-          AND u.estado = 'AC' AND dde.estado = 'A'
-          AND (@id_docente IS NULL OR ddo.id_docente = @id_docente)
-          AND (@id_facultad IS NULL OR ofa.id_departamento = @id_facultad)
-          AND (@id_oferta_modalidad IS NULL OR pao.id_oferta_modalidad = @id_oferta_modalidad)
-          AND pao.id_periodo_academico = @id_periodo_academico
-    ),
-    HorasDetalle AS
-    (
-        SELECT pc.idPersona, hapm.idDocente, hapm.idDistributivoDocente, hapm.idDistributivoOferta,
-               hapm.idActividadDetalle, hapm.idActividadPersonal, hapm.actividadPersonal, hapm.asignadas
-        FROM PersonasConsulta pc
-        CROSS APPLY aca.fn_get_actividades_docente_por_mes(@id_periodo_academico, pc.idPersona, @mes) hapm
-    ),
-    HorasActividades AS
-    (
-        SELECT hd.idPersona, hd.idDocente, hd.idDistributivoDocente, hd.idDistributivoOferta,
-               SUM(ISNULL(hd.asignadas, 0)) AS horasActividades,
-               SUM(CASE WHEN hd.actividadPersonal LIKE '%Vinculación%' THEN ISNULL(hd.asignadas, 0) ELSE 0 END) AS esperadasVinculacion,
-               SUM(CASE WHEN hd.actividadPersonal LIKE '%Investigación%' THEN ISNULL(hd.asignadas, 0) ELSE 0 END) AS esperadasInvestigacion
-        FROM HorasDetalle hd
-        WHERE hd.idActividadPersonal <> 0
-        GROUP BY hd.idPersona, hd.idDocente, hd.idDistributivoDocente, hd.idDistributivoOferta
-    ),
-    HorasClases AS
-    (
-        SELECT hd.idPersona, SUM(ISNULL(hd.asignadas, 0)) AS horasClases
-        FROM HorasDetalle hd
-        WHERE hd.idActividadPersonal = 0
-        GROUP BY hd.idPersona
-    )
-    SELECT ROW_NUMBER() OVER (ORDER BY p.apellidos, p.nombres) AS id, p.id AS idPersona,
-           d.id_docente AS idDocente, u.id AS idUsuario, p.identificacion, p.apellidos,
-           p.nombres, CONCAT(p.apellidos, ' ', p.nombres) AS nombresCompletos,
-           aca.fn_get_titulo_persona(p.id, 'PRETER') AS titulo_tercer_nivel,
-           aca.fn_get_titulo_persona_senecyt(p.id, 'PRETER') AS registro_senecyt_tercer_nivel,
-           aca.fn_get_titulo_persona(p.id, 'PRECUA') AS titulo_cuarto_nivel, ofa.facultad,
-           ofa.carrera, aca.fn_get_titulo_persona_senecyt(p.id, 'PRECUA') AS registro_senecyt_cuarto_nivel,
-           ddo.id_distributivo_docente AS idDistributivoDocente, dode.descripcion_corta AS dedicacion,
-           dca.tipo_relacion_laboral AS tipoContrato, dca.descripcion AS categoria,
-
-           (
-               SELECT *
-               FROM aca.fn_get_clases_por_mes(pao.id_periodo_academico, p.id, @mes)
-               FOR JSON PATH
-           ) AS horaClases,
-
-           (
-               SELECT sa.id_seguimiento_actividad, apd.codigo, apd.descripcion AS actividad,
-                      sa.horas, adde.descripcion AS detalle, adde.codigo AS codigoDetalle,
-                      sa.productos, sa.avance, apd.abreviatura
-               FROM aca.seguimiento_actividad sa
-               INNER JOIN aca.actividad_personal_docente apd ON apd.id_actividad_personal = sa.id_tipo_actividad
-               INNER JOIN aca.actividad_docente_detalle adde ON adde.id_actividad_detalle = sa.id_actividad_detalle
-               CROSS JOIN ParametrosFecha pf
-               WHERE sa.estado = 'A' AND apd.estado = 'A' AND adde.estado = 'A'
-                 AND sa.id_docente = d.id_docente AND sa.id_periodo_academico = @id_periodo_academico
-                 AND sa.fecha_cumplimiento >= pf.fechaInicio AND sa.fecha_cumplimiento < pf.fechaFin
-               FOR JSON PATH
-           ) AS actividades,
-
-           (
-               SELECT apd.id_actividad_personal, apd.codigo, apd.abreviatura,
-                      apd.descripcion AS actividad, CAST(SUM(da_int.valor) AS DECIMAL(10,2)) AS horas
-               FROM aca.docente_actividad da_int
-               INNER JOIN aca.actividad_docente_detalle acdd ON acdd.id_actividad_detalle = da_int.id_actividad_detalle
-               INNER JOIN reglamentoActividad ra ON ra.id_actividad_detalle = acdd.id_actividad_detalle AND ra.id_reglamento = pao.id_reglamento
-               INNER JOIN aca.actividad_personal_docente apd ON apd.id_actividad_personal = ra.id_actividad_personal
-               WHERE da_int.id_distributivo_docente = ddo.id_distributivo_docente
-                 AND da_int.estado = 'A' AND acdd.estado = 'A' AND apd.estado = 'A'
-               GROUP BY apd.id_actividad_personal, apd.codigo, apd.abreviatura, apd.descripcion
-               FOR JSON PATH
-           ) AS actividadesDistributivo,
-
-           (
-               SELECT im_int.id_informe_mensual AS idInformeMensual,
-                      ise.id_informe_seguimiento AS idInformeSeguimiento,
-                      pr.descripcion AS proceso, r.descripcion AS rol,
-                      ic_int.id_actividad_personal_docente AS idActividadPersonalDocente,
-                      da.id_documento_archivo AS idDocumentoArchivo, da.file_name AS fileName
-               FROM pro.proceso pr
-               INNER JOIN pro.proceso_etapa pe ON pe.id_proceso = pr.id_proceso
-               INNER JOIN pro.proceso_etapa_rol per ON per.id_proceso_etapa = pe.id_proceso_etapa
-               INNER JOIN seg.roles r ON r.id = per.id_rol
-               INNER JOIN pro.etapa e ON e.id_etapa = pe.id_etapa
-               INNER JOIN pro.etapa_calendario_mensual ec ON ec.id_proceso_etapa_rol = per.id_proceso_etapa_rol
-               INNER JOIN aca.informe_configuracion ic_int ON ic_int.id_proceso = pr.id_proceso AND ic_int.id_periodo = ec.id_periodo AND ic_int.mes = ec.mes
-               INNER JOIN aca.informe_seguimiento ise ON ise.id_proceso_etapa_rol = per.id_proceso_etapa_rol
-               INNER JOIN aca.informe_mensual im_int ON im_int.id_informe_mensual = ise.id_informe_mensual AND im_int.id_informe_configuracion = ic_int.id_informe_configuracion
-               LEFT JOIN man.documentos_archivos da ON da.id_number = ise.id_informe_seguimiento AND da.table_name = 'aca_informe_seguimiento' AND da.estado = 'A'
-               WHERE pr.estado = 'A' AND pe.estado = 'A' AND per.estado = 'A'
-                 AND e.estado = 'A' AND ec.estado = 'A' AND ic_int.estado = 'A'
-                 AND ise.estado = 'A' AND im_int.estado = 'A'
-                 AND ec.id_periodo = pa.id_periodo AND ec.mes = @mes
-                 AND ic_int.id_actividad_personal_docente = @id_actividad_personal_docente
-                 AND im_int.id_docente = d.id_docente
-               FOR JSON PATH
-           ) AS informes,
-
-           ROUND(ISNULL(ha.horasActividades, 0) + ISNULL(hc.horasClases, 0), 2) AS horasEsperadas,
-           ROUND(ISNULL(ha.esperadasVinculacion, 0), 2) AS esperadasVinculacion,
-           ROUND(ISNULL(ha.esperadasInvestigacion, 0), 2) AS esperadasInvestigacion,
-
-           (
-               SELECT *
-               FROM cat.fn_obtener_director_y_decano_por_id_oferta(ofa.id_oferta)
-               FOR JSON PATH, INCLUDE_NULL_VALUES
-           ) AS rol,
-
-           ic.id_informe_configuracion AS idInformeConfiguracion,
-           im.id_informe_mensual AS idInformeMensual, im.observacion
-    FROM aca.distributivo_oferta dio
-    INNER JOIN distributivosVigentes dv ON dv.id_distributivo_oferta = dio.id_distributivo_oferta
-    INNER JOIN aca.periodo_academico_oferta pao ON pao.id_periodo_academico_oferta = dio.id_periodo_academico_oferta
-    INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = pao.id_periodo_academico
-    INNER JOIN aca.ofertas_facultad ofa ON ofa.id_oferta_modalidad = pao.id_oferta_modalidad
-    INNER JOIN aca.distributivo_docente ddo ON ddo.id_distributivo_oferta = dio.id_distributivo_oferta
-    INNER JOIN aca.distributivo_dedicacion dde ON dde.id_distributivo_docente = ddo.id_distributivo_docente
-    INNER JOIN aca.docente_dedicacion dode ON dode.id_docente_dedicacion = dde.id_docente_dedicacion
-    INNER JOIN aca.docente_categoria dca ON dca.id_docente_categoria = dde.id_docente_categoria
-    INNER JOIN aca.docente d ON d.id_docente = ddo.id_docente
-    INNER JOIN man.personas p ON p.id = d.id_persona
-    INNER JOIN seg.usuarios u ON u.persona_id = p.id
-    INNER JOIN aca.informe_configuracion ic ON ic.id_periodo = pa.id_periodo AND ic.mes = @mes AND ic.id_actividad_personal_docente = @id_actividad_personal_docente
-    INNER JOIN aca.informe_mensual im ON im.id_docente = d.id_docente AND im.id_informe_configuracion = ic.id_informe_configuracion AND im.estado = 'A'
-    LEFT JOIN HorasActividades ha ON ha.idPersona = p.id AND ha.idDocente = d.id_docente AND ha.idDistributivoDocente = ddo.id_distributivo_docente AND ha.idDistributivoOferta = dio.id_distributivo_oferta
-    LEFT JOIN HorasClases hc ON hc.idPersona = p.id
-    WHERE ddo.estado = 'A' AND dio.estado IN ('A','V','D') AND pao.estado = 'A'
-      AND u.estado = 'AC' AND dde.estado = 'A'
-      AND (@id_docente IS NULL OR ddo.id_docente = @id_docente)
-      AND (@id_facultad IS NULL OR ofa.id_departamento = @id_facultad)
-      AND (@id_oferta_modalidad IS NULL OR pao.id_oferta_modalidad = @id_oferta_modalidad)
-      AND pao.id_periodo_academico = @id_periodo_academico
-);
-GO

@@ -695,7 +695,9 @@ select * from aca.periodo_academico where id_tipo_oferta = 2
     inner join aca.periodo_academico pa on pa.id_periodo_academico = pg.id_periodo_academico
     inner join pro.proceso_calendario pc on pg.id_proceso_general = pc.id_proceso_general
     where pro.estado='A' and tp.estado='A' and pg.estado='A' and pa.estado='A' and tp.codigo='SOLICITUDESCAMBIOCARRERA'
-    and pa.id_periodo_academico in (136)
+    and pa.id_periodo_academico in (136,137)
+
+
 
 
 select * from pro.proceso_calendario
@@ -746,14 +748,14 @@ where pg.id_periodo_academico = 36
 
 select
 --     pc.id_proceso_calendario,e.id_etapa,e.descripcion,pr.id_proceso_requisito,pr.descripcion,pr.estado
-   distinct pr.*
+   distinct er.*
 from pro.etapa_requisito er
 inner join pro.proceso_calendario pc on er.id_proceso_calendario = pc.id_proceso_calendario
 inner join pro.proceso_general pg on pc.id_proceso_general = pg.id_proceso_general
 inner join pro.proceso_etapa pe on pc.id_proceso_etapa = pe.id_proceso_etapa
 inner join pro.etapa e on pe.id_etapa = e.id_etapa
 inner join pro.proceso_requisito pr on er.id_proceso_requisito = pr.id_proceso_requisito
-where er.estado='A' and pc.estado='A' and pe.estado='A' and e.estado='A' and pe.id_proceso = 2 and pg.id_periodo_academico in (96,136)
+where er.estado='A' and pc.estado='A' and pe.estado='A' and e.estado='A' and pe.id_proceso = 2 and pg.id_periodo_academico in (136,137)
 
 select * from pro.proceso_calendario where id_proceso_etapa = 9
 
@@ -3802,3 +3804,45 @@ BEGIN
       AND sm.codigo = 'CUR-ASIG-CURR';
 END;
 GO
+
+
+select * from aca.tipo_estado_estudiante
+
+select pao.id_periodo_academico_oferta,pao.puntaje_minimo_admision,pao.id_oferta_modalidad,ofa.carrera from aca.periodo_academico_oferta pao
+         inner join aca.ofertas_facultad ofa on ofa.id_oferta_modalidad =pao.id_oferta_modalidad
+         where pao.estado='A' and pao.id_periodo_academico =137 and pao.id_oferta_modalidad not in (125,220,221)
+order by ofa.carrera
+
+select * from pro.solicitud_cambio_carrera
+
+select
+    distinct om.*
+--     pao.id_periodo_academico_oferta,pao.id_periodo_academico,pao.id_oferta_modalidad,pao.id_malla,pao.puntaje_minimo_admision,
+--        ofa.carrera,m.id_malla,m.descripcion,m.estado,m.vigente
+from aca.periodo_academico_oferta pao
+        inner join aca.oferta_modalidad om on pao.id_oferta_modalidad = om.id_oferta_modalidad
+         inner join aca.ofertas_facultad ofa on ofa.id_oferta_modalidad = pao.id_oferta_modalidad
+         inner join aca.malla m on pao.id_oferta_modalidad = m.id_oferta_modalidad
+where pao.estado='A' and m.estado in ('A','P') and pao.id_periodo_academico = 137 and pao.id_oferta_modalidad in (220,221,125)
+
+
+WITH mallas AS
+         (
+             SELECT m.id_oferta_modalidad, MAX(m.id_malla) AS id_malla
+             FROM aca.malla m
+             WHERE m.estado IN ('A', 'P')
+             GROUP BY m.id_oferta_modalidad
+             HAVING COUNT(*) = 1
+         )
+-- update pao set pao.id_malla = m.id_malla
+SELECT pao.id_periodo_academico_oferta, pao.id_periodo_academico, pao.id_oferta_modalidad,
+       pao.id_malla, pao.puntaje_minimo_admision, ofa.carrera, m.id_malla AS id_malla_disponible
+
+FROM aca.periodo_academico_oferta pao
+         INNER JOIN aca.ofertas_facultad ofa ON ofa.id_oferta_modalidad = pao.id_oferta_modalidad
+         INNER JOIN mallas m ON m.id_oferta_modalidad = pao.id_oferta_modalidad
+WHERE pao.estado = 'A' AND pao.id_malla IS NULL --AND pao.id_periodo_academico = 136
+ORDER BY ofa.carrera;
+
+
+select * from pro.proceso_general where id_proceso = 2

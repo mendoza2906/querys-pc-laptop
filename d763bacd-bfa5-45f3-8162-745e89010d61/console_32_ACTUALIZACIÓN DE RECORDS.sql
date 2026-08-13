@@ -1,6 +1,6 @@
 USE bd_sga_upse
 
-select * from aca.periodo_academico where id_tipo_oferta = 2
+select id_periodo_academico,codigo,descripcion from aca.periodo_academico where id_tipo_oferta = 1
 select * from aca.planificacion_paralelo where id_planificacion_paralelo = 13515
 select * from aca.planificacion_paralelo_detalle where id_planificacion_paralelo = 13515
 select * from [dbo].[aux_aprobados_update]
@@ -9,7 +9,7 @@ select * from aca.ofertas_facultad where id_tipo_oferta = 2
 --grado
 --grado
 begin
-    declare @id_periodo_academico int = 96,@id_departamento int = null,@id_oferta_modalidad int = 31
+    declare @id_periodo_academico int = 136,@id_departamento int = null,@id_oferta_modalidad int = null
 insert into [dbo].[aux_aprobados_update]
 select ma.id_malla_asignatura,a.descripcion,
        case when ma.UICII=0
@@ -272,10 +272,10 @@ end
 
 --DELETE from  dbo.aux_aprobados_update
 select * from [dbo].[aux_aprobados_update]
-select * from aca.periodo_academico where id_tipo_oferta = 4
+select * from aca.periodo_academico where id_tipo_oferta = 1
 --nivelacion
 begin
-        declare @id_periodo_academico int = 127,@id_departamento int = null,@id_oferta_modalidad int = null
+        declare @id_periodo_academico int = 138,@id_departamento int = null,@id_oferta_modalidad int = null
     insert into [dbo].[aux_aprobados_update]
     select ma.id_malla_asignatura,a.descripcion, case when ma.UICII=0 then   cast (isnull(sum ( cast (aux.suma as decimal(10,2))),0)/2 as decimal(10,2)) else max(aux.suma)end as promedio,
     round(case when ma.UICII=0 then   cast (isnull(sum ( cast (aux.suma as decimal(10,2))),0)/2 as decimal(10,2)) else max(aux.suma)end,0) as promedio_redondeado,
@@ -360,7 +360,7 @@ select * from aca.periodo_academico where id_tipo_oferta = 4
 ---centro de idiomas
 
 begin
-    declare @id_periodo_academico int = 146,@id_departamento int = null,@id_oferta_modalidad int = null
+    declare @id_periodo_academico int = 150,@id_departamento int = null,@id_oferta_modalidad int = null
     insert into [dbo].[aux_aprobados_update]
 select ma.id_malla_asignatura,a.descripcion, case when
                                                       ma.UICII=0 and  (tof.codigo='POSGRADO' or tof.codigo='CENTROIDIOMAS' ) then    max(aux.suma) else isnull(sum ( cast (aux.suma as decimal(10,2))),0)   end as promedio,

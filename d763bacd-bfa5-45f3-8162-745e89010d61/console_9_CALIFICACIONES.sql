@@ -1,15 +1,23 @@
 use bd_sga_upse
 
-select --ac.id_malla_asignatura,
- distinct a.descripcion,ec.id_estudiante_oferta,ec.id_componente_aprendizaje,ac.id_paralelo,ca.descripcion,ec.*
---        ec.*
+select
+--   ofa.carrera,m.id_oferta_modalidad,ma.id_malla_asignatura,a.descripcion,concat(est.apellidos,' ',est.nombres) as estudiante,ec.id_estudiante_oferta,ec.id_componente_aprendizaje,ac.id_paralelo,ca.descripcion
+       ec.*
 from aca.acta_calificacion ac
 inner join aca.calificacion_general cg on cg.id_calificacion_general = ac.id_calificacion_general
 inner join aca.estudiante_calificacion ec on ec.id_acta_calificacion = ac.id_acta_calificacion
+inner join aca.estudiante_oferta eo on ec.id_estudiante_oferta = eo.id_estudiante_oferta
+inner join man.personas est on est.id = eo.id_persona
+inner join aca.docente d on ec.id_docente = d.id_docente
+inner join man.personas p on d.id_persona = p.id
 inner join aca.componente_aprendizaje ca on ec.id_componente_aprendizaje = ca.id_componente_aprendizaje
 inner join aca.malla_asignatura ma on ma.id_malla_asignatura = ac.id_malla_asignatura
+inner join aca.malla m on ma.id_malla = m.id_malla
+inner join aca.ofertas_facultad ofa on ofa.id_oferta_modalidad = m.id_oferta_modalidad
 inner join aca.asignatura a on a.id_asignatura = ma.id_asignatura
-where cg.id_periodo_academico =96 and ec.id_estudiante_oferta in (89149,53502) and ec.id_componente_aprendizaje = 9
+where cg.id_periodo_academico =136 and p.identificacion='044545454779'
+  and ac.id_ciclo = 2 and  ec.id_componente_aprendizaje in (10)
+ order by   est.apellidos,est.nombres
 
     select * from aca.estudiante_calificacion where id_acta_calificacion = 12583
 

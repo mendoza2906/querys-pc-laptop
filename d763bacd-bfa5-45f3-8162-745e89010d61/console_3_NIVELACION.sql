@@ -579,7 +579,7 @@ select * from man.personas where porcentaje_dis like'%%%'
 ------------REPORTE FINAL SABER QUIENES SON LOS JOVENES QUE NO DEBEN ESTAR MATRICULADOS EN PRIMER SEMESTRE
 begin
 
-    declare @pi_id_perido_academico int =127,@id_oferta_modalidad int= null
+    declare @pi_id_perido_academico int =138,@id_oferta_modalidad int= null
 --         select distinct eo.* from (
     select distinct xd.* from (
           select

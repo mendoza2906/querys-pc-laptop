@@ -1488,3 +1488,136 @@ alter FUNCTION [aca].[fun_record_ingles_estudiante](@identificacion varchar(10))
           AND (  identificacion <> '2450878158' OR sistema = 'sistema 2022-actualidad')
         )
 go
+
+---set estudiante oferta padre en centro de idiomas
+begin
+    declare @id_periodo_academico int=95
+    select distinct eo.id_estudiante_oferta,eoa.id_estudiante_oferta,eo.id_estudiante_oferta_padre,eo.id_persona,
+                    pa.codigo as periodo,om.facultad,om.carrera,tee.descripcion,te.descripcion,tie.descripcion,omp.facultad as facultadGrado,omp.carrera as carreraGrado,
+                    eo2.tipo_ingreso_estudiante,eo2.tipo_estudiante,eo2.estado_carrera,
+                    p.identificacion,p.apellidos,p.nombres,eo.mantiene_gratuidad
+    from man.personas p
+             inner join aca.estudiante_oferta eo on eo.id_persona = p.id
+             inner join aca.tipo_estado_estudiante tee on tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+             inner join aca.tipo_estudiante te on eo.id_tipo_estudiante = te.id_tipo_estudiante
+             inner join aca.tipo_ingreso_estudiante tie on eo.id_tipo_ingreso_estudiante = tie.id_tipo_ingreso_estudiante
+--              inner join aca.estudiante_matricula em on em.id_estudiante_oferta = eo.id_estudiante_oferta
+
+             inner join aca.ofertas_facultad om on om.id_oferta_modalidad = eo.id_oferta_modalidad
+             inner join aca.estudiante_oferta eoa on eoa.id_persona = eo.id_persona and eoa.id_oferta_modalidad <> 18 and eoa.id_tipo_estado_estudiante in (1) -- in (1,4,5,17)
+--              left join aca.estudiante_oferta eop on eop.id_estudiante_oferta = eo.id_estudiante_oferta_padre
+             inner join aca.ofertas_facultad omp on omp.id_oferta_modalidad = eoa.id_oferta_modalidad
+             inner join aca.estudiantes_ofertas eo2 on eo2.id_estudiante_oferta = eoa.id_estudiante_oferta
+             inner join aca.periodo_academico pa on pa.id_periodo_academico = eoa.id_periodo_academico
+    where  om.id_tipo_oferta = 4 and eo.estado='I' and eo.id_estudiante_oferta_padre is null and omp.id_tipo_oferta = 2 --and omp.id_oferta not in (40,41,25,59,60,36,107,35,97)
+--       and em.estado='A'
+    order by  p.identificacion,pa.codigo
+end;
+
+begin
+;WITH datos AS
+          (
+              SELECT DISTINCT
+                  eo.id_estudiante_oferta,
+                  eoa.id_estudiante_oferta AS id_estudiante_oferta_grado,
+                  eo.id_estudiante_oferta_padre,
+                  eo.id_persona,
+                  pa.codigo AS periodo,
+                  om.facultad,
+                  om.carrera,
+                  tee.descripcion,
+                  te.descripcion as tipoEstudianteCI,
+                  tie.descripcion as ingresoCI,
+                  omp.facultad AS facultadGrado,
+                  omp.carrera AS carreraGrado,
+                  eo2.tipo_ingreso_estudiante,
+                  eo2.tipo_estudiante,
+                  eo2.estado_carrera,
+                  p.identificacion,
+                  p.apellidos,
+                  p.nombres,
+                  eo.mantiene_gratuidad
+              FROM man.personas p
+                       INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+                       INNER JOIN aca.tipo_estado_estudiante tee ON tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+                       INNER JOIN aca.tipo_estudiante te ON eo.id_tipo_estudiante = te.id_tipo_estudiante
+                       INNER JOIN aca.tipo_ingreso_estudiante tie ON eo.id_tipo_ingreso_estudiante = tie.id_tipo_ingreso_estudiante
+--                        INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+                       INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+                       INNER JOIN aca.estudiante_oferta eoa ON eoa.id_persona = eo.id_persona
+                  AND eoa.id_oferta_modalidad <> 18
+                  AND eoa.id_tipo_estado_estudiante IN (1)
+                       INNER JOIN aca.ofertas_facultad omp ON omp.id_oferta_modalidad = eoa.id_oferta_modalidad
+                       INNER JOIN aca.estudiantes_ofertas eo2 ON eo2.id_estudiante_oferta = eoa.id_estudiante_oferta
+                       INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = eoa.id_periodo_academico
+              WHERE om.id_tipo_oferta = 4 and eo.estado='A'
+                AND eo.id_estudiante_oferta_padre IS NULL
+--                 AND em.estado = 'A'
+                   and omp.id_oferta not in (40,41,25,59,60,36,107,35,97)
+                AND omp.id_tipo_oferta = 2
+          ),
+      carreras AS
+          (
+              SELECT identificacion,
+                     COUNT(*) AS totalCarreras
+              FROM
+                  (
+                      SELECT DISTINCT identificacion, carreraGrado
+                      FROM datos
+                  ) t
+              GROUP BY identificacion
+          )
+
+ SELECT d.*
+--  update eo set eo.id_estudiante_oferta_padre = d.id_estudiante_oferta_grado,eo.usuario_mod ='2400254286',eo.fecha_mod=getdate()
+FROM datos d
+  INNER JOIN carreras c ON c.identificacion = d.identificacion
+  inner join aca.estudiante_oferta eo on eo.id_estudiante_oferta =  d.id_estudiante_oferta
+ WHERE c.totalCarreras = 1
+-- order by d.periodo,d.identificacion;
+end
+
+BEGIN
+    ;WITH datos AS
+              (
+                  SELECT DISTINCT
+                      eo.id_estudiante_oferta, eoa.id_estudiante_oferta AS id_estudiante_oferta_grado,
+                      eo.id_estudiante_oferta_padre, eo.id_persona, pa.codigo AS periodo,
+                      om.facultad, om.carrera, tee.descripcion,
+                      te.descripcion AS tipoEstudianteCI, tie.descripcion AS ingresoCI,
+                      omp.facultad AS facultadGrado, omp.carrera AS carreraGrado,
+                      eo2.tipo_ingreso_estudiante, eo2.tipo_estudiante, eo2.estado_carrera,
+                      p.identificacion, p.apellidos, p.nombres, eo.mantiene_gratuidad
+                  FROM man.personas p
+                           INNER JOIN aca.estudiante_oferta eo ON eo.id_persona = p.id
+                           INNER JOIN aca.tipo_estado_estudiante tee ON tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+                           INNER JOIN aca.tipo_estudiante te ON te.id_tipo_estudiante = eo.id_tipo_estudiante
+                           INNER JOIN aca.tipo_ingreso_estudiante tie ON tie.id_tipo_ingreso_estudiante = eo.id_tipo_ingreso_estudiante
+--                            INNER JOIN aca.estudiante_matricula em ON em.id_estudiante_oferta = eo.id_estudiante_oferta
+                           INNER JOIN aca.ofertas_facultad om ON om.id_oferta_modalidad = eo.id_oferta_modalidad
+                           INNER JOIN aca.estudiante_oferta eoa ON eoa.id_persona = eo.id_persona AND eoa.id_oferta_modalidad <> 18 AND eoa.id_tipo_estado_estudiante IN (1)
+                           INNER JOIN aca.ofertas_facultad omp ON omp.id_oferta_modalidad = eoa.id_oferta_modalidad
+                           INNER JOIN aca.estudiantes_ofertas eo2 ON eo2.id_estudiante_oferta = eoa.id_estudiante_oferta
+                           INNER JOIN aca.periodo_academico pa ON pa.id_periodo_academico = eoa.id_periodo_academico
+                  WHERE om.id_tipo_oferta = 4 AND eo.id_estudiante_oferta_padre IS NULL
+--                     AND em.estado = 'A'
+                    AND omp.id_oferta NOT IN (40, 41, 25, 59, 60, 36, 107, 35, 97)
+                    AND omp.id_tipo_oferta = 2
+              ),
+          carrerasOrdenadas AS
+              (
+                  SELECT d.*,
+                         ROW_NUMBER() OVER
+                             (
+                             PARTITION BY d.id_persona
+                             ORDER BY d.periodo DESC,
+                                 d.id_estudiante_oferta_grado DESC
+                             ) AS rn
+                  FROM datos d
+              )
+     SELECT co.*
+--     UPDATE eo SET eo.id_estudiante_oferta_padre = co.id_estudiante_oferta_grado,  eo.usuario_mod = '2400254286', eo.fecha_mod = GETDATE()
+    FROM aca.estudiante_oferta eo
+             INNER JOIN carrerasOrdenadas co ON co.id_estudiante_oferta = eo.id_estudiante_oferta
+    WHERE co.rn = 1;
+END;

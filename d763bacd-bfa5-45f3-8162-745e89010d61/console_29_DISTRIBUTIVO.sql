@@ -13,6 +13,8 @@ select * from aca.fn_get_validacion_planificacion_paralelo(894,0)
 
 SELECT * FROM aca.docente_por_definir
 
+select * from mig.historial_docente
+
 
 begin
     declare @id_periodo_academico int = 138, @id_oferta_modalidad int = null

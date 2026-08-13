@@ -27,6 +27,7 @@ select * from tmp.matricula_proyeccion where cast(fecha_mod as date)>='2026-02-2
 -- delete from tmp.matricula_proyeccion where cast(fecha_mod as date)>='2026-02-24'
 
 exec [tmp].[sp_generar_pronostico_matriculados_siguiente_periodo_v2] 96, null, null,null
+exec [tmp].[sp_generar_pronostico_matriculados_siguiente_periodo_v2] 136, null, null,null
 
 SELECT * FROM rep.fn_get_cantidad_matriculados_porcentajes_inline(136,NULL,NULL)
 ORDER BY facultad,carrera,id_nivel;
@@ -72,13 +73,13 @@ where pm.id_periodo_academico = 95 and pm.fecha_mod is not null --and pm.pronost
 select mp.carrera,mp.id_nivel,avg(mp.matriculados_actuales)from tmp.matricula_proyeccion mp where mp.id_periodo_academico = 95
 group by mp.carrera, mp.id_nivel
 
-select * from  tmp.matricula_proyeccion pm
+select * from  tmp.matricula_proyeccion pm where id_periodo_academico = 137
 -- VALUES (@id_periodo_academico_siguiente,'2024-2',@facultad_cur, @carrera_cur, @id_oferta_modalidad_cur, @id_asignatura_cur, @id_malla_cur,@id_malla_asignatura_cur,@semestre_cur,
 --         @numeroPrerrequisitos,@numero_periodos, @asignatura_cur,@detalle_prerrequisitos,@detalle_periodos,
 --         @observacion_detalle,@matriculadosPeriodoActual,@estimados_1er,@estimados_2do,@estimados_3ro)
 
 
-
+begin
 --reporte de numero de paralelos por materia y carrera, con modalidad
 WITH CursosConParalelos AS (
         SELECT
@@ -97,12 +98,12 @@ WITH CursosConParalelos AS (
                  FROM tmp.matricula_proyeccion pm
                 INNER JOIN aca.malla_asignatura ma ON pm.id_malla_asignatura = ma.id_malla_asignatura
                 INNER JOIN aca.modalidad_asignatura ma2 ON ma.id_modalidad_asignatura = ma2.id_modalidad_asignatura
-                 where pm.id_periodo_academico = 95
+                 where pm.id_periodo_academico = 137
              ) a
     )
     SELECT * FROM CursosConParalelos
     ORDER BY id_malla_asignatura
-
+end
 
 
 select id_periodo_academico,codigo,descripcion,id_periodo_academico_anterior from aca.periodo_academico where id_tipo_oferta = 2
@@ -114,33 +115,13 @@ where o.id_tipo_oferta = 2 and om.id_oferta_modalidad in (123,119,124)
 
 
 
-select pa.id_periodo_academico,pa.codigo,dep.nombre as facultad,o.descripcion as carrera,om.id_oferta_modalidad
-from aca.malla ma
-inner join aca.oferta_modalidad om on om.id_oferta_modalidad = ma.id_oferta_modalidad
-inner join aca.departamento_oferta do on do.id_oferta = om.id_oferta
-inner join man.departamentos dep on dep.id = do.id_departamento
-inner join aca.oferta o on o.id_oferta = do.id_oferta
-inner join aca.malla_asignatura mas on ma.id_malla = mas.id_malla
-inner join aca.asignatura asi on mas.id_asignatura = asi.id_asignatura
-inner join aca.nivel ni  on ni.id_nivel = mas.id_nivel
-inner join aca.planificacion_paralelo pp on pp.id_malla_asignatura=mas.id_malla_asignatura
-and pp.ofertada=1 and pp.estado='A'
-inner join aca.periodo_academico pa on pa.id_periodo_academico = pp.id_periodo_academico
-
-where pp.id_periodo_academico =35
-and ma.estado in ('A','P') and om.estado='A' and do.estado='A' and pa.estado='A' and pa.codigo_tipo_periodo ='PAORD'
-and o.estado='A' and mas.estado='A' and asi.estado='A' and ni.estado='A'
-group by dep.nombre,o.descripcion,om.id_oferta_modalidad,pa.id_periodo_academico,pa.codigo
-order by dep.nombre,o.descripcion
-
-
-
 select * from tmp.matricula_proyeccion
 
 
 
 
-select d.periodoAcademico,d.facultad,d.carrera,d.orden as semestre,d.idParalelo as paralelo,d.asignatura,d.nombreDocente,d.numMatriculados from [rep].[rpt_matriz_aprobacion_estudiantes](36,null,null) as d
+select d.periodoAcademico,d.facultad,d.carrera,d.orden as semestre,d.idParalelo as paralelo,d.asignatura,d.nombreDocente,d.numMatriculados
+from [rep].[rpt_matriz_aprobacion_estudiantes](36,null,null) as d
 order by d.facultad,d.carrera,d.orden,d.asignatura,d.idParalelo
 
 select d.facultad,d.carrera,d.numReprobados,d.porcentajeReprobados,d.asignatura,concat(d.orden,'/',d.idParalelo) as curso_paralelo,d.nombreDocente,d.numMatriculados,'2024-1' as PAO,'S/N' as  accionesMejorar
@@ -165,41 +146,15 @@ select d.codigo,d.facultad,d.carrera,d.id_asignatura,d.asignatura,avg(d.porcenta
 from [rep].[fn_get_cantidad_matriculados_porcentajes](96, null, null, null) as d
 group by d.codigo,d.facultad,d.carrera,d.id_asignatura,d.asignatura
 
--- where d.id_oferta_modalidad in (89)
 select * from [rep].[fn_get_cantidad_matriculados_porcentajes_por_paralelo](96,null,88,null) a
 select * from aca.periodo_academico where id_tipo_oferta = 2
 select * from aca.ofertas_facultad where id_tipo_oferta = 2
-
 select * from aca.ofertas_facultad where id_tipo_oferta = 2
 
 select * from rel.fn_relaciones_ofertas_nivelacion_grado(37)
 select * from aca.ciclo c
 
 select * from aca.periodo_academico where id_tipo_oferta = 2
-
-select --distinct pao.*
- distinct m.*
---     dep.nombre as facultad, o.descripcion as carrera,om.id_oferta_modalidad,asi.id_asignatura,m.id_malla, ma.id_malla_asignatura,ni.id_nivel as semestre, asi.descripcion as asignatura
-from aca.malla m
-         inner join aca.oferta_modalidad om on om.id_oferta_modalidad = m.id_oferta_modalidad
-         inner join aca.departamento_oferta do on do.id_oferta = om.id_oferta
-         inner join man.departamentos dep on dep.id = do.id_departamento
-         inner join aca.oferta o on o.id_oferta = do.id_oferta
-         inner join aca.malla_asignatura ma on ma.id_malla = m.id_malla
-         inner join aca.asignatura asi on ma.id_asignatura = asi.id_asignatura
-         inner join aca.nivel ni on ni.id_nivel = ma.id_nivel
-         inner join aca.periodo_academico_oferta pao on om.id_oferta_modalidad = pao.id_oferta_modalidad
-where pao.id_periodo_academico = 95 and m.vigente = 1
---           and om.id_oferta_modalidad = 80
-  and ma.id_nivel <= m.id_nivel_max_aperturado
---   and (om.id_oferta_modalidad = @id_oferta_modalidad or @id_oferta_modalidad is null)
---   and (dep.id =@id_facultad or @id_facultad is null)
---   and (ma.id_nivel = @id_nivel or @id_nivel is null)
-  and ma.estado in ('A', 'P') and om.estado = 'A' and do.estado = 'A' and o.estado = 'A' and ma.estado = 'A' and asi.estado = 'A' and ni.estado = 'A'
--- group by asi.id_asignatura, asi.descripcion, ni.descripcion, ni.orden, dep.nombre, o.descripcion,ma.id_malla_asignatura, om.id_oferta_modalidad, ni.id_nivel, m.id_malla
--- order by dep.nombre, o.descripcion, ni.orden, asi.descripcion
-
-
 
 --NUMERO DE REPROBADOS POR SEMESTRE
 begin
@@ -326,12 +281,24 @@ begin
 
 end
 
-select * from tmp.matricula_proyeccion pm where pm.id_periodo_academico = 136
-order by facultad,carrera,id_nivel,asignatura
+SELECT pm.id, pm.id_periodo_academico, pm.codigo_periodo, pm.facultad, pm.carrera, pm.id_oferta_modalidad,
+       pm.id_nivel, pm.numero_prerrequisitos, pm.numero_periodos, m.descripcion AS malla, pm.asignatura,
+       pm.detalle_prerrequisitos, pm.detalle_periodos, pm.observacion, pm.matriculados_actuales,
+       COALESCE(
+               pm.pronostico_1_aprobados_menos_reprobados,
+               pm.pronostico_2_simular_reprobados_1_ciclo,
+               pm.pronostico_3_matriculados_historicos
+       ) AS pronostico,
+       pm.fecha_mod, pm.estado
+FROM tmp.matricula_proyeccion pm
+         INNER JOIN aca.malla m ON m.id_malla = pm.id_malla
+WHERE pm.id_periodo_academico = 137
+  AND pm.id_oferta_modalidad NOT IN (125)
+ORDER BY pm.facultad, pm.carrera, m.id_malla, pm.id_nivel, pm.asignatura;
 
 --reportes de aulas necesarias por carrera
 begin
-    declare @id_periodo_academico int = 136;
+    declare @id_periodo_academico int = 137;
     WITH CursosConParalelos AS (
         SELECT
             id_malla_asignatura,codigo_periodo,facultad,carrera,nivel,asignatura,detalle_prerrequisitos,observacion,
@@ -355,7 +322,11 @@ begin
                                           inner join aca.componente_aprendizaje ca on aa.id_componente_aprendizaje = ca.id_componente_aprendizaje
                                         where aa.id_malla_asignatura= pm.id_malla_asignatura and aa.estado='A'
                                               and ca.codigo in ('DOCENCIA','PRACTICA','ASISTIDODOCENTE','SINCRONICO','SINCRONICOP')) as horas,
-                   pm.pronostico_1_aprobados_menos_reprobados AS pronostico
+                       COALESCE(
+                               pm.pronostico_1_aprobados_menos_reprobados,
+                               pm.pronostico_2_simular_reprobados_1_ciclo,
+                               pm.pronostico_3_matriculados_historicos
+                       )  AS pronostico
                FROM tmp.matricula_proyeccion pm
                         INNER JOIN aca.malla_asignatura ma ON pm.id_malla_asignatura = ma.id_malla_asignatura
                         INNER JOIN aca.modalidad_asignatura ma2 ON ma.id_modalidad_asignatura = ma2.id_modalidad_asignatura

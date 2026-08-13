@@ -1038,10 +1038,12 @@ select * from aca.asignatura
 --get numero estudiantes
 select * from aca.estudiante_oferta where id_oferta_modalidad = 91 and id_periodo_academico = 136
 
-select distinct ra.* from mig.record_oferta ro
+select distinct ro.* from mig.record_oferta ro
                      left join mig.record_matricula rm on ro.id_record_oferta = rm.id_record_oferta
                      left join mig.record_asignaturas ra on ra.id_record_oferta = ro.id_record_oferta
-where ro.identificacion='2450379942'
+where ro.identificacion='0104751003'
+
+select * from mig.listar_carreras_sga where identificacion ='0104751003'
 
 select min(pa.fecha_desde) as fecha_desde,min(rm.fecha_matricula) as fecha_ing,min(ro.id_estudiante_oferta) as id_estudiante_oferta,eo.id_persona
 from mig.record_oferta ro
@@ -1089,10 +1091,39 @@ begin
              inner join aca.tipo_ingreso_estudiante tie on eo.id_tipo_ingreso_estudiante = tie.id_tipo_ingreso_estudiante
              inner join aca.ofertas_facultad ofa on ofa.id_oferta_modalidad = eo.id_oferta_modalidad
     where --eo.id_periodo_academico = @id_periodo_academico and
---           p.identificacion in ('1750397273')
-    eo.id_estudiante_oferta=60393
+          p.identificacion in ('2450033986')
+--     eo.id_estudiante_oferta=60393
 end;
 
-select * from aca.tipo_estudiante
+select * from man.personas where identificacion in ('2450033986')
 
-select * from tes.rubro
+
+select * from aca.tipo_estudiante
+select * from aca.tipo_estado_estudiante
+select * from aca.tipo_ingreso_estudiante
+
+select dm.* from aca.movilidad m
+         inner join aca.detalle_movilidad dm on m.id_movilidad = dm.id_movilidad
+         where m.id_estudiante_oferta = 64605
+
+select * from aca.oferta
+
+
+
+begin
+    select
+--     distinct  em.*
+        --       distinct  ea.*--,p.identificacion
+--         distinct eo.*
+        distinct eo.id_estudiante_oferta,eo.id_estudiante_oferta_padre,eo.numero_matricula,pa.codigo,ofa.facultad,ofa.carrera,p.identificacion,p.apellidos,p.nombres,tee.descripcion,tie.descripcion
+    from man.personas p
+             inner join aca.estudiante_oferta eo on eo.id_persona = p.id
+             left join aca.periodo_academico pa on pa.id_periodo_academico = eo.id_periodo_academico
+             inner join aca.tipo_estado_estudiante tee on tee.id_tipo_estado_estudiante = eo.id_tipo_estado_estudiante
+             inner join aca.tipo_ingreso_estudiante tie on eo.id_tipo_ingreso_estudiante = tie.id_tipo_ingreso_estudiante
+             inner join aca.ofertas_facultad ofa on ofa.id_oferta_modalidad = eo.id_oferta_modalidad
+    where eo.estado='A' and ofa.id_tipo_oferta  = 2 and eo.id_tipo_estado_estudiante in (1)--eo.id_periodo_academico = @id_periodo_academico and
+--           p.identificacion in ('2450033986')
+--     eo.id_estudiante_oferta=60393
+end;
+

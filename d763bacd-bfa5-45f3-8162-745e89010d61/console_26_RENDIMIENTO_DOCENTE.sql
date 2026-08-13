@@ -119,33 +119,14 @@ where hd.curso is not null and hd.curso not like '%NIV%' and len(hd.curso)<>3 an
 
 EXECUTE Bd_Academico..sp_historia_docente_upse '0603932450'
 
-EXECUTE Bd_Academico..sp_historia_docente_upse '1711043438'
+EXECUTE Bd_Academico..sp_historia_docente_upse '1750397273'
 
-EXECUTE Bd_Academico..sp_historia_docente_upse '0603208117'
+EXECUTE Bd_Academico..sp_historia_docente_upse '1312849720'
 
--- -insertar solo uno
-begin
-    declare @tempRecordAsignaturasTemporal table(
-                                                    PERIODO NVARCHAR(10), TIPO_OFERTA NVARCHAR(50),DOCENTE NVARCHAR(300),ABR_TTN NVARCHAR(15),
-                                                    CARRERA NVARCHAR(1000),ASIGNATURA NVARCHAR(500), CURSO NVARCHAR(15), CARGA_SEMANAL INT, titulo_tn NVARCHAR(500), inicia DATE,  finaliza DATE, sede VARCHAR(200)
-                                                );
-    declare @ceduladoc varchar(20)='0924275779'
-
--- Insertar los datos
-    INSERT INTO @tempRecordAsignaturasTemporal (PERIODO, TIPO_OFERTA, DOCENTE, ABR_TTN, CARRERA, ASIGNATURA, CURSO, CARGA_SEMANAL, titulo_tn, inicia, finaliza,sede)
-        EXECUTE Bd_Academico..sp_historia_docente_upse @ceduladoc
-
-    -- Consultar la tabla temporal
--- insert into  mig.historial_docente
-    SELECT PERIODO, TIPO_OFERTA,@ceduladoc, DOCENTE, ABR_TTN, CARRERA, sede, ASIGNATURA, CURSO, CARGA_SEMANAL, titulo_tn,inicia, finaliza,'A','2400254286',null
-    FROM @tempRecordAsignaturasTemporal t
-
-end
-
--- DBCC CHECKIDENT ('mig.historial_docente', RESEED, 0);
--- delete from mig.historial_docente
+select * from mig.historial_docente where identificacion='1721343166'
 
 select * from mig.historial_docente where tipo_oferta is null or tipo_oferta =''
+
 
 -- update  mig.historial_docente set tipo_oferta = 'PREGRADO' where tipo_oferta is null or tipo_oferta =''
 -- update  mig.historial_docente set titulo = 'NO REGISTRA' where titulo is null or titulo =''
@@ -160,90 +141,290 @@ select identificacion,docente,count(id_historial_docente)from mig.historial_doce
 where hd.curso<>''
 group by identificacion, docente
 
--- DBCC CHECKIDENT ('mig.historial_docente', RESEED, 53820);
+select p.id,p.identificacion,p.apellidos,p.nombres from man.personas p
+where p.estado='AC'
+  and p.identificacion not in (select hd.identificacion from mig.historial_docente hd)
+  and (p.identificacion in ('1312849720') or '1312849720' is null)
 
-Alter PROCEDURE [mig].[sp_migrate_historial_docente_sisweb](
-    @ceduladoc varchar(20)
+SELECT p.id, p.identificacion, p.apellidos, p.nombres
+FROM man.personas p
+
+WHERE p.estado = 'AC'
+  AND p.identificacion IN
+                    (
+                        SELECT bp.identificacion
+                        FROM bdupse.seg.personas bp
+
+
+        );
+
+
+-- DBCC CHECKIDENT ('mig.historial_docente', RESEED, 53820);
+-- exec [mig].[sp_migrate_historial_docente_sisweb] null
+ALTER PROCEDURE [mig].[sp_migrate_historial_docente_sisweb]
+(
+    @ceduladoc varchar(20) = NULL
 )
     WITH
         EXECUTE AS CALLER
 AS
 BEGIN TRY
+
     BEGIN TRANSACTION;
-    DECLARE @id_persona int
-    DECLARE @identificacion varchar(100), @nombres varchar(250),@apellidos varchar(250),@id_persona_existe int = null
-    declare @tempRecordAsignaturasTemporal table(PERIODO NVARCHAR(10), TIPO_OFERTA NVARCHAR(50),DOCENTE NVARCHAR(75),ABR_TTN NVARCHAR(50),
-            CARRERA NVARCHAR(2000),ASIGNATURA NVARCHAR(2000), CURSO NVARCHAR(50), CARGA_SEMANAL INT, titulo_tn NVARCHAR(1000), inicia DATE,  finaliza DATE, sede VARCHAR(500));
 
-    DECLARE cursorPersonas CURSOR LOCAL FOR
-        --migrar los datos de los docentes
---         select p.id,p.identificacion,p.apellidos,p.nombres from aca.docente d
---         inner join man.personas p on d.id_persona = p.id
---         where d.estado='A' and p.estado='AC' --and p.identificacion not in ('1803738580','0603932450','1309869723','1707326813','0924275779')
---           and p.identificacion not in (select hd.identificacion from mig.historial_docente hd)
---           and (p.identificacion in (@ceduladoc) or @ceduladoc is null)
+    DECLARE @id_persona int,
+        @identificacion varchar(100),
+        @nombres varchar(250),
+        @apellidos varchar(250),
+        @registros_origen int,
+        @registros_nuevos int,
+        @docentes_procesados int = 0
 
-        select p.id,p.identificacion,p.apellidos,p.nombres from man.personas p
-        where p.estado='AC' --and p.identificacion not in ('1803738580','0603932450','1309869723','1707326813','0924275779')
-          and p.identificacion not in (select hd.identificacion from mig.historial_docente hd)
---           and (p.identificacion in (@ceduladoc) or @ceduladoc is null)
-          and p.identificacion in (select p.identificacion from bdupse.seg.personas p where identificacion in (select identificacion from seg.usuarios u inner join bdupse.seg.usuarios_roles ur on u.id=ur.usuarios_id
-                                                                                                               where roles_id in (151,187)))
+    DECLARE @tempRecordAsignaturasTemporal TABLE
+                                           (
+                                               PERIODO NVARCHAR(10),
+                                               TIPO_OFERTA NVARCHAR(50),
+                                               DOCENTE NVARCHAR(75),
+                                               ABR_TTN NVARCHAR(50),
+                                               CARRERA NVARCHAR(2000),
+                                               ASIGNATURA NVARCHAR(2000),
+                                               CURSO NVARCHAR(50),
+                                               CARGA_SEMANAL INT,
+                                               titulo_tn NVARCHAR(1000),
+                                               inicia DATE,
+                                               finaliza DATE,
+                                               sede VARCHAR(500)
+                                           );
+
+    /*==============================================================*/
+    /* Obtener docentes a procesar                                  */
+    /* Si se envía cédula, se procesa directamente                  */
+    /* Si es NULL, se procesan los docentes con los roles indicados */
+    /*==============================================================*/
+    DECLARE cursorPersonas CURSOR LOCAL FAST_FORWARD FOR
+--         SELECT p.id, p.identificacion, p.apellidos, p.nombres
+--         FROM man.personas p
+--         WHERE p.estado = 'AC'
+--           AND
+--             (
+--                 (@ceduladoc IS NOT NULL AND p.identificacion = @ceduladoc)
+--                     OR
+--                 (
+--                     @ceduladoc IS NULL
+--                         AND p.identificacion IN
+--                             (
+--                                 SELECT bp.identificacion
+--                                 FROM bdupse.seg.personas bp
+--                             )
+--                     )
+--                 );
+        select  p.id, p.identificacion, p.apellidos, p.nombres
+        from pro.proceso_usuario2 pu
+                 inner join pro.tipo_proceso_estado tpe on pu.id_tipo_proceso_estado = tpe.id_tipo_proceso_estado
+                 inner join man.personas p on p.id = pu.id_persona
+                 inner join pro.postulacion_vacante pv on pv.id_proceso_usuario = pu.id_proceso_usuario
+                 inner join pro.proceso_vacante prv on prv.id_proceso_vacante = pv.id_proceso_vacante
+                 inner join pro.vacante v on v.id_vacante = prv.id_vacante
+                 inner join aca.docente_categoria dc on dc.id_docente_categoria = v.id_docente_categoria
+                 inner join aca.oferta o on o.id_oferta = v.id_oferta
+                 inner join aca.departamento_oferta dof on dof.id_oferta = o.id_oferta
+                 inner join man.departamentos d on dof.id_departamento = d.id
+                 inner join pro.proceso_etapa_ejecucion2 pee2 on pee2.id_proceso_usuario = pu.id_proceso_usuario
+        where  pu.estado='A' and pv.estado='A' and prv.estado='A' and v.estado='A'
+          and pee2.estado='A' and pee2.id_proceso_etapa = 1
+          and pu.id_proceso_general = 105
+        group by d.nombre,o.descripcion,v.asignatura,p.id,p.identificacion,p.apellidos,p.nombres,pu.id_proceso_usuario,v.id_docente_categoria,tpe.codigo,
+                 pee2.id_proceso_etapa_ejecucion,p.email_institucional,email_personal,dc.descripcion,pee2.calificacion
 
     OPEN cursorPersonas
-    FETCH NEXT FROM cursorPersonas INTO @id_persona,@identificacion,@apellidos, @nombres
+
+    FETCH NEXT FROM cursorPersonas INTO @id_persona, @identificacion, @apellidos, @nombres
+
     WHILE @@FETCH_STATUS = 0
         BEGIN
-            set @id_persona_existe = null
-            delete from @tempRecordAsignaturasTemporal
-            --Verificar si ya se migró
-            --Verificar si ya existe una persona con esa cédula
-            select top 1 @id_persona_existe = id_historial_docente from mig.historial_docente
-            where estado = 'A' and identificacion = @identificacion
 
-            if (@id_persona_existe is null)
-                begin
-                    print CONCAT('INSERTANDO DATOS DEL HISTORIAL DEL DOCENTE ',@identificacion,' : ',@apellidos,' ',@nombres )
+            SET @docentes_procesados = @docentes_procesados + 1
+            SET @registros_origen = 0
+            SET @registros_nuevos = 0
 
-                    INSERT INTO @tempRecordAsignaturasTemporal (PERIODO, TIPO_OFERTA, DOCENTE, ABR_TTN, CARRERA, ASIGNATURA, CURSO, CARGA_SEMANAL, titulo_tn, inicia, finaliza,sede)
-                        EXECUTE Bd_Academico..sp_historia_docente_upse @identificacion
+            DELETE FROM @tempRecordAsignaturasTemporal
 
-                    -- Consultar la tabla temporal
-                    insert into  mig.historial_docente
-                    SELECT PERIODO, TIPO_OFERTA,@identificacion, DOCENTE, ABR_TTN, CARRERA, sede, ASIGNATURA, CURSO, CARGA_SEMANAL, titulo_tn,inicia, finaliza,'A','2400254286',null
-                    FROM @tempRecordAsignaturasTemporal t
-                end
-            else
-                begin
-                    print CONCAT('YA SE MIGRO EL HISTORIAL DEL DOCENTE ',@identificacion,' : ',@apellidos,' ',@nombres )
-                end
+            PRINT '============================================================'
+            PRINT CONCAT('PROCESANDO DOCENTE: ', @identificacion, ' - ', @apellidos, ' ', @nombres)
 
-            FETCH NEXT FROM cursorPersonas INTO @id_persona,@identificacion,@apellidos, @nombres
+            /*==============================================================*/
+            /* Consultar historial del docente en SISWEB                    */
+            /*==============================================================*/
+            INSERT INTO @tempRecordAsignaturasTemporal
+            (
+                PERIODO,
+                TIPO_OFERTA,
+                DOCENTE,
+                ABR_TTN,
+                CARRERA,
+                ASIGNATURA,
+                CURSO,
+                CARGA_SEMANAL,
+                titulo_tn,
+                inicia,
+                finaliza,
+                sede
+            )
+                EXECUTE Bd_Academico..sp_historia_docente_upse @identificacion
+
+            SELECT @registros_origen = COUNT(*)
+            FROM @tempRecordAsignaturasTemporal
+
+            PRINT CONCAT('REGISTROS EN SISWEB: ', @registros_origen)
+
+            /*==============================================================*/
+            /* Insertar únicamente los registros que hacen falta            */
+            /*==============================================================*/
+            INSERT INTO mig.historial_docente
+            (
+                periodo,
+                tipo_oferta,
+                identificacion,
+                docente,
+                abreviatura,
+                carrera,
+                sede,
+                asignatura,
+                curso,
+                carga_semanal,
+                titulo,
+                fecha_inicio,
+                fecha_fin,
+                estado,
+                usuario_mod,
+                fecha_mod
+            )
+            SELECT t.PERIODO, t.TIPO_OFERTA, @identificacion, t.DOCENTE, t.ABR_TTN, t.CARRERA, t.sede, t.ASIGNATURA,
+                   c.curso_normalizado, t.CARGA_SEMANAL, t.titulo_tn, t.inicia, t.finaliza, 'A', '2400254286', NULL
+            FROM @tempRecordAsignaturasTemporal t
+                     CROSS APPLY
+                 (
+                     SELECT CASE
+                                WHEN LEN(t.CURSO) = 6
+                                    THEN SUBSTRING(t.CURSO, 4, 3)
+
+                                WHEN LEN(t.CURSO) = 4
+                                    AND t.CURSO LIKE '%-%'
+                                    AND SUBSTRING(t.CURSO, 1, 1) = '0'
+                                    THEN CONCAT('NIV/', SUBSTRING(t.CURSO, 4, 1))
+
+                                WHEN LEN(t.CURSO) = 4
+                                    AND t.CURSO LIKE '%-%'
+                                    AND SUBSTRING(t.CURSO, 1, 1) <> '0'
+                                    THEN CONCAT(SUBSTRING(t.CURSO, 1, 1), '/', SUBSTRING(t.CURSO, 4, 1))
+
+                                WHEN LEN(t.CURSO) = 5
+                                    AND t.CURSO LIKE '%-%'
+                                    THEN CONCAT(SUBSTRING(t.CURSO, 1, 2), '/', SUBSTRING(t.CURSO, 5, 1))
+
+                                WHEN LEN(t.CURSO) = 7
+                                    AND t.CURSO LIKE '%.%'
+                                    THEN SUBSTRING(t.CURSO, 4, 3)
+
+                                WHEN LEN(t.CURSO) = 7
+                                    AND t.CURSO LIKE '%-%'
+                                    AND SUBSTRING(t.CURSO, 1, 2) = '11'
+                                    THEN SUBSTRING(t.CURSO, 5, 3)
+
+                                ELSE t.CURSO
+                                END AS curso_normalizado
+                 ) c
+            WHERE NOT EXISTS
+                      (
+                          SELECT 1
+                          FROM mig.historial_docente h
+                          WHERE h.identificacion = @identificacion
+                            AND ISNULL(h.periodo, '') = ISNULL(t.PERIODO, '')
+                            AND ISNULL(h.tipo_oferta, '') = ISNULL(t.TIPO_OFERTA, '')
+                            AND ISNULL(h.docente, '') = ISNULL(t.DOCENTE, '')
+                            AND ISNULL(h.abreviatura, '') = ISNULL(t.ABR_TTN, '')
+                            AND ISNULL(h.carrera, '') = ISNULL(t.CARRERA, '')
+                            AND ISNULL(h.sede, '') = ISNULL(t.sede, '')
+                            AND ISNULL(h.asignatura, '') = ISNULL(t.ASIGNATURA, '')
+                            AND ISNULL(h.curso, '') = ISNULL(c.curso_normalizado, '')
+                            AND ISNULL(h.carga_semanal, 0) = ISNULL(t.CARGA_SEMANAL, 0)
+                            AND ISNULL(h.titulo, '') = ISNULL(t.titulo_tn, '')
+                            AND ISNULL(h.fecha_inicio, CONVERT(date, '19000101')) =
+                                ISNULL(t.inicia, CONVERT(date, '19000101'))
+                            AND ISNULL(h.fecha_fin, CONVERT(date, '19000101')) =
+                                ISNULL(t.finaliza, CONVERT(date, '19000101'))
+                      );
+
+            SET @registros_nuevos = @@ROWCOUNT
+
+            IF @registros_nuevos > 0
+                BEGIN
+                    PRINT CONCAT('REGISTROS NUEVOS INSERTADOS: ', @registros_nuevos)
+                END
+            ELSE
+                BEGIN
+                    PRINT 'NO EXISTEN REGISTROS NUEVOS PARA MIGRAR'
+                END
+
+            FETCH NEXT FROM cursorPersonas INTO @id_persona, @identificacion, @apellidos, @nombres
+
         END
+
     CLOSE cursorPersonas
     DEALLOCATE cursorPersonas
-    --Si todo esta correcto se hace el commit
-    COMMIT TRANSACTION;
-    PRINT 'Transaccion realizada con exito';
-END TRY
---Excepciones y control de errores
-BEGIN CATCH
-    DECLARE @Error_Number int, @Error_Severity int, @Error_State int,
-        @Error_Procedure varchar(1000), @Error_Line int, @Error_Message varchar(8000)
-    SELECT
-        @Error_Number = ERROR_NUMBER(),
-        @Error_Severity = ERROR_SEVERITY(),
-        @Error_State = ERROR_STATE(),
-        @Error_Procedure = ERROR_PROCEDURE(),
-        @Error_Line = ERROR_LINE(),
-        @Error_Message = ERROR_MESSAGE()
 
-    RAISERROR(@Error_Message,@Error_Severity, @Error_State)
-    PRINT 'Ha ocorrido un error. No se realizo la transacción'
+    IF @docentes_procesados = 0
+        BEGIN
+            PRINT 'NO SE ENCONTRARON DOCENTES PARA PROCESAR'
+        END
+    ELSE
+        BEGIN
+            PRINT '============================================================'
+            PRINT CONCAT('DOCENTES PROCESADOS: ', @docentes_procesados)
+        END
+
+    COMMIT TRANSACTION;
+
+    PRINT 'TRANSACCION REALIZADA CON EXITO';
+
+END TRY
+
+BEGIN CATCH
+
+    DECLARE @Error_Number int,
+        @Error_Severity int,
+        @Error_State int,
+        @Error_Procedure varchar(1000),
+        @Error_Line int,
+        @Error_Message varchar(8000)
+
+    SELECT @Error_Number = ERROR_NUMBER(),
+           @Error_Severity = ERROR_SEVERITY(),
+           @Error_State = ERROR_STATE(),
+           @Error_Procedure = ERROR_PROCEDURE(),
+           @Error_Line = ERROR_LINE(),
+           @Error_Message = ERROR_MESSAGE()
+
+    IF CURSOR_STATUS('local', 'cursorPersonas') >= 0
+        CLOSE cursorPersonas
+
+    IF CURSOR_STATUS('local', 'cursorPersonas') > -3
+        DEALLOCATE cursorPersonas
+
     IF @@TRANCOUNT > 0
         ROLLBACK TRANSACTION
+
+    PRINT CONCAT('ERROR NUMERO: ', @Error_Number)
+    PRINT CONCAT('PROCEDIMIENTO: ', ISNULL(@Error_Procedure, ''))
+    PRINT CONCAT('LINEA: ', @Error_Line)
+    PRINT CONCAT('MENSAJE: ', @Error_Message)
+    PRINT 'HA OCURRIDO UN ERROR. NO SE REALIZO LA TRANSACCION'
+
+    RAISERROR(@Error_Message, @Error_Severity, @Error_State)
+
 END CATCH
-go
+GO
+
 --1253
 select * from bdupse.seg.personas p where identificacion in (select identificacion from seg.usuarios u inner join bdupse.seg.usuarios_roles ur on u.id=ur.usuarios_id
                                                            where roles_id in (151,187))
@@ -660,3 +841,57 @@ select * from mig.historial_docente where identificacion in ('1710178615')
 
 EXECUTE Bd_Academico..sp_historia_docente_upse '1710178615'
 
+--
+-- WITH duplicados AS
+--          (
+--              SELECT id_historial_docente,
+--                     ROW_NUMBER() OVER
+--                         (
+--                         PARTITION BY periodo, tipo_oferta, identificacion, docente, abreviatura, carrera, sede,
+--                         asignatura, curso, carga_semanal, titulo, fecha_inicio, fecha_fin
+--                         ORDER BY id_historial_docente
+--                         ) AS numero
+--              FROM mig.historial_docente
+--          )
+-- SELECT COUNT(*) AS registrosDuplicados
+-- FROM duplicados
+-- WHERE numero > 1;
+--
+-- WITH duplicados AS
+--          (
+--              SELECT id_historial_docente, periodo, tipo_oferta, identificacion, docente, abreviatura, carrera, sede,
+--                     asignatura, curso, carga_semanal, titulo, fecha_inicio, fecha_fin,
+--                     ROW_NUMBER() OVER
+--                         (
+--                         PARTITION BY periodo, tipo_oferta, identificacion, docente, abreviatura, carrera, sede,
+--                         asignatura, curso, carga_semanal, titulo, fecha_inicio, fecha_fin
+--                         ORDER BY id_historial_docente
+--                         ) AS numero
+--              FROM mig.historial_docente
+--          )
+-- SELECT *
+-- FROM duplicados
+-- -- WHERE numero > 1
+-- ORDER BY identificacion, periodo, asignatura;
+
+-- BEGIN TRANSACTION;
+--
+-- WITH duplicados AS
+--          (
+--              SELECT id_historial_docente,
+--                     ROW_NUMBER() OVER
+--                         (
+--                         PARTITION BY periodo, tipo_oferta, identificacion, docente, abreviatura, carrera, sede,
+--                         asignatura, curso, carga_semanal, titulo, fecha_inicio, fecha_fin
+--                         ORDER BY id_historial_docente
+--                         ) AS numero
+--              FROM mig.historial_docente
+--          )
+-- DELETE
+-- FROM duplicados
+-- WHERE numero > 1;
+--
+-- SELECT @@ROWCOUNT AS registrosEliminados;
+--
+-- -- COMMIT TRANSACTION;
+-- ROLLBACK TRANSACTION;

@@ -181,9 +181,9 @@ from (
                   inner join aca.departamento_oferta dof on dof.id_oferta = o.id_oferta
                   inner join man.departamentos d on dof.id_departamento = d.id
                   inner join pro.proceso_etapa_ejecucion2 pee2 on pee2.id_proceso_usuario = pu.id_proceso_usuario
-         where  pu.estado='A' and pv.estado='A' and prv.estado='A' and v.estado='A'  --AND P.identificacion ='0802990838'
-           and pee2.estado='A' and pee2.id_proceso_etapa = 2 --and pee2.calificacion is not null and pee2.calificacion>=35
-           and pu.id_proceso_general = 25
+         where  pu.estado='A' and pv.estado='A' and prv.estado='A' and v.estado='A'
+           and pee2.estado='A' and pee2.id_proceso_etapa = 2
+           and pu.id_proceso_general = 105
          group by d.nombre,o.descripcion,v.asignatura,p.id,p.identificacion,p.apellidos,p.nombres,pu.id_proceso_usuario,v.id_docente_categoria,tpe.codigo,
                   pee2.id_proceso_etapa_ejecucion,p.email_institucional,email_personal,dc.descripcion,pee2.calificacion
 -- order by d.nombre,o.descripcion,v.asignatura,p.apellidos,p.nombres
@@ -1393,7 +1393,8 @@ select * from pro.proceso
 
 select * from pro.proceso_etapa
 
-select * from pro.proceso_calendario
+select * from pro.proceso_calendario where id_proceso_general = 105
+select * from pro.proceso_general where id_proceso_general = 105
 
 select * from pro.etapa
 
@@ -1612,13 +1613,188 @@ select o.descripcion,om.* from aca.oferta o
 where id_tipo_oferta =2
 --25    59
 
-select * from aca.periodo_academico where id_tipo_oferta = 2
+select * from aca.periodo_academico where id_tipo_oferta = 1
 
+--9 s 884 ms
+select * from [pro].[fn_list_all_postulaciones_concursos_merito](105,5,null,10,
+                                                                 null,null,null,null,1) as d
+exec [pro].[sp_list_all_postulaciones_concursos_merito] ?,?,?,?,?,?,?,?,?
+begin
+    declare  @id_proceso_general integer= 105,
+        @id_facultad integer= null,
+        @id_oferta integer= null,
+        @id_categoria_docente integer=10,
+        @id_proceso_vacante integer=null,
+        @id_user integer=null,
+        @id_proceso_usuario integer=null,
+        @codigoProceso varchar(60)=null,
+        @id_proceso_etapa integer=1
+    SELECT DISTINCT pu2.id_proceso_usuario, pv.id_postulacion_vacante, per.id, u.id, pu2.serie, per.identificacion,
+                    UPPER(CONCAT(per.apellidos, ' ', per.nombres)) AS postulante,
+                    IIF(per.email_institucional IS NULL OR per.email_institucional = '',
+                        per.email_personal, per.email_institucional),
+                    v.codigo, o.descripcion, d.id, d.nombre, a.descripcion, n.descripcion, prov.remuneracion,
+                    v.campo_amplio_conocimiento, v.campo_detallado_conocimiento, v.campo_especifico_conocimiento,
+                    ISNULL(v.titulo_tercer_nivel, ''), ISNULL(v.titulo_cuarto_nivel, ''),
+                    dc.id_docente_categoria, dc.descripcion, dd.descripcion, tpe.descripcion, tpe.color,
+                    ISNULL(
+                            [pro].[fn_sca_get_calificacion_by_evaluacion]
+                            (
+                                    pee.id_proceso_etapa,
+                                    pu2.id_proceso_usuario
+                            ),
+                            ISNULL(pee.calificacion, 0)
+                    ) AS calificacion,
+                    iif(cast(pee.fecha_ing as date)<>cast(pee.fecha_mod as date),1,0) as evaluado,
+                    prov.id_proceso_vacante, prov.otro_idioma, ma.id_modalidad_asignatura,
+                    modA.descripcion, modC.descripcion,
+                    o.id_oferta, pu2.notificado, pu2.aprobado, pu2.observacion,
+                    docs.totalDocumentos, docs.totalDocumentosSubidos
+    FROM pro.proceso_usuario2 pu2
+             INNER JOIN pro.proceso_etapa_ejecucion2 pee ON pee.id_proceso_usuario = pu2.id_proceso_usuario AND pee.id_proceso_etapa = @id_proceso_etapa
+             INNER JOIN pro.tipo_proceso_estado tpe ON tpe.id_tipo_proceso_estado = pee.id_tipo_proceso_estado
+             INNER JOIN pro.postulacion_vacante pv ON pu2.id_proceso_usuario = pv.id_proceso_usuario
+             INNER JOIN pro.proceso_general pg ON pu2.id_proceso_general = pg.id_proceso_general
+             INNER JOIN pro.proceso p ON pg.id_proceso = p.id_proceso
+             INNER JOIN pro.tipo_proceso tp ON tp.id_tipo_proceso = p.id_tipo_proceso
+             INNER JOIN man.personas per ON pu2.id_persona = per.id
+             INNER JOIN seg.usuarios u ON u.persona_id = per.id
+             INNER JOIN pro.proceso_vacante prov ON prov.id_proceso_vacante = pv.id_proceso_vacante
+             INNER JOIN pro.vacante v ON prov.id_vacante = v.id_vacante
+             INNER JOIN aca.oferta o ON v.id_oferta = o.id_oferta
+             INNER JOIN aca.departamento_oferta dof ON dof.id_oferta = o.id_oferta
+             INNER JOIN man.departamentos d ON dof.id_departamento = d.id
+             INNER JOIN pro.vacante_asignatura va ON v.id_vacante = va.id_vacante
+             INNER JOIN aca.malla_asignatura ma ON va.id_malla_asignatura = ma.id_malla_asignatura
+             INNER JOIN aca.modalidad_asignatura modA ON modA.id_modalidad_asignatura = ma.id_modalidad_asignatura
+             INNER JOIN aca.asignatura a ON ma.id_asignatura = a.id_asignatura
+             INNER JOIN aca.nivel n ON ma.id_nivel = n.id_nivel
+             INNER JOIN aca.docente_categoria dc ON v.id_docente_categoria = dc.id_docente_categoria
+             INNER JOIN aca.docente_dedicacion dd ON v.id_docente_dedicacion = dd.id_docente_dedicacion
+             INNER JOIN pro.proceso_calendario pc ON pc.id_proceso_general = pg.id_proceso_general AND pc.id_proceso_etapa = pee.id_proceso_etapa
+             LEFT JOIN pro.vacante_cronograma_etapa vce ON prov.id_proceso_vacante = vce.id_proceso_vacante
+        AND vce.id_proceso_etapa = pee.id_proceso_etapa
+        AND vce.estado = 'A'
+             LEFT JOIN aca.modalidad modC ON vce.id_modalidad = modC.id_modalidad AND vce.estado = 'A' AND modC.estado = 'A'
+             OUTER APPLY
+         (
+             SELECT COUNT(DISTINCT doc.descripcionRequisito) AS totalDocumentos,
+                    COUNT(doc.id_etapa_ejecucion_documento) AS totalDocumentosSubidos
+             FROM pro.fn_list_documentos_postulante(pu2.id_proceso_usuario) doc
+             WHERE pc.requiere_documento = 1
+         ) docs
+    WHERE pu2.estado = 'A' AND pv.estado = 'A' AND pg.estado = 'A'
+      AND p.estado = 'A' AND per.estado = 'AC' AND prov.estado = 'A'
+      AND modA.estado = 'A' AND o.estado = 'A' AND u.estado = 'AC'
+      AND pee.estado = 'A' AND va.estado = 'A' AND va.principal = 1
+      AND (tp.codigo = @codigoProceso OR @codigoProceso IS NULL)
+      AND (pg.id_proceso_general = @id_proceso_general OR @id_proceso_general IS NULL)
+      AND (d.id = @id_facultad OR @id_facultad IS NULL)
+      AND (o.id_oferta = @id_oferta OR @id_oferta IS NULL)
+      AND (dc.id_docente_categoria = @id_categoria_docente OR @id_categoria_docente IS NULL)
+      AND (pv.id_proceso_vacante = @id_proceso_vacante OR @id_proceso_vacante IS NULL)
+      AND (u.id = @id_user OR @id_user IS NULL)
+      AND (pu2.id_proceso_usuario = @id_proceso_usuario OR @id_proceso_usuario IS NULL)
+    ORDER BY d.nombre, o.descripcion, a.descripcion, postulante;
+end
 
-select * from [pro].[fn_list_all_postulaciones_concursos_merito](96,null,null,10,
-                                                                 null,null,null,null,null) as d
+BEGIN
+    DECLARE @id_proceso_general int = 105,
+        @id_facultad int = NULL,
+        @id_oferta int = NULL,
+        @id_categoria_docente int = 10,
+        @id_proceso_vacante int = NULL,
+        @id_user int = NULL,
+        @id_proceso_usuario int = NULL,
+        @codigoProceso varchar(60) = NULL,
+        @id_proceso_etapa int = 1;
+
+    WITH postulantes AS
+             (
+                 SELECT DISTINCT pu2.id_proceso_usuario, o.id_oferta, o.descripcion AS carrera,
+                                 ISNULL(docs.totalDocumentos, 0) AS totalDocumentos,
+                                 ISNULL(docs.totalDocumentosSubidos, 0) AS totalDocumentosSubidos
+                 FROM pro.proceso_usuario2 pu2
+                          INNER JOIN pro.proceso_etapa_ejecucion2 pee ON pee.id_proceso_usuario = pu2.id_proceso_usuario AND pee.id_proceso_etapa = @id_proceso_etapa
+                          INNER JOIN pro.postulacion_vacante pv ON pu2.id_proceso_usuario = pv.id_proceso_usuario
+                          INNER JOIN pro.proceso_general pg ON pu2.id_proceso_general = pg.id_proceso_general
+                          INNER JOIN pro.proceso p ON pg.id_proceso = p.id_proceso
+                          INNER JOIN pro.tipo_proceso tp ON tp.id_tipo_proceso = p.id_tipo_proceso
+                          INNER JOIN man.personas per ON pu2.id_persona = per.id
+                          INNER JOIN seg.usuarios u ON u.persona_id = per.id
+                          INNER JOIN pro.proceso_vacante prov ON prov.id_proceso_vacante = pv.id_proceso_vacante
+                          INNER JOIN pro.vacante v ON prov.id_vacante = v.id_vacante
+                          INNER JOIN aca.oferta o ON v.id_oferta = o.id_oferta
+                          INNER JOIN aca.departamento_oferta dof ON dof.id_oferta = o.id_oferta
+                          INNER JOIN man.departamentos d ON dof.id_departamento = d.id
+                          INNER JOIN pro.vacante_asignatura va ON v.id_vacante = va.id_vacante
+                          INNER JOIN aca.malla_asignatura ma ON va.id_malla_asignatura = ma.id_malla_asignatura
+                          INNER JOIN aca.modalidad_asignatura modA ON modA.id_modalidad_asignatura = ma.id_modalidad_asignatura
+                          INNER JOIN aca.docente_categoria dc ON v.id_docente_categoria = dc.id_docente_categoria
+                          INNER JOIN pro.proceso_calendario pc ON pc.id_proceso_general = pg.id_proceso_general AND pc.id_proceso_etapa = pee.id_proceso_etapa
+                          OUTER APPLY (
+                     SELECT COUNT(DISTINCT doc.descripcionRequisito) AS totalDocumentos,
+                            COUNT(doc.id_etapa_ejecucion_documento) AS totalDocumentosSubidos
+                     FROM pro.fn_list_documentos_postulante(pu2.id_proceso_usuario) doc
+                     WHERE pc.requiere_documento = 1
+                 ) docs
+                 WHERE pu2.estado = 'A' AND pv.estado = 'A' AND pg.estado = 'A' AND p.estado = 'A'
+                   AND per.estado = 'AC' AND prov.estado = 'A' AND modA.estado = 'A' AND o.estado = 'A'
+                   AND u.estado = 'AC' AND pee.estado = 'A' AND va.estado = 'A' AND va.principal = 1
+                   AND (tp.codigo = @codigoProceso OR @codigoProceso IS NULL)
+                   AND (pg.id_proceso_general = @id_proceso_general OR @id_proceso_general IS NULL)
+                   AND (d.id = @id_facultad OR @id_facultad IS NULL)
+                   AND (o.id_oferta = @id_oferta OR @id_oferta IS NULL)
+                   AND (dc.id_docente_categoria = @id_categoria_docente OR @id_categoria_docente IS NULL)
+                   AND (pv.id_proceso_vacante = @id_proceso_vacante OR @id_proceso_vacante IS NULL)
+                   AND (u.id = @id_user OR @id_user IS NULL)
+                   AND (pu2.id_proceso_usuario = @id_proceso_usuario OR @id_proceso_usuario IS NULL)
+             )
+    SELECT id_oferta, carrera,
+           COUNT(*) AS totalPostulantes,
+           SUM(IIF(totalDocumentos > 0 AND totalDocumentosSubidos >= totalDocumentos, 1, 0)) AS documentacionCompleta,
+           SUM(IIF(totalDocumentosSubidos > 0 AND totalDocumentosSubidos < totalDocumentos, 1, 0)) AS documentacionParcial,
+           SUM(IIF(totalDocumentosSubidos = 0, 1, 0)) AS sinDocumentacion
+    FROM postulantes
+    GROUP BY id_oferta, carrera
+    ORDER BY carrera;
+END;
+
+select * from seg.usuario_opcion
+select * from man.opciones where url like '%postulacion-vacante-concurso-merito%'
+
+select * from seg.usuarios where usuario in ('1312849720','0917849069')
+
+select * from pro.proceso_calendario where id_proceso_general = 105
+
 
 -- where d.identificacion in ('2450847211')
+
+select * from pro.vacante_asignatura where estado='A'
+
+SELECT va.id_vacante_asignatura, va.id_vacante, va.id_malla_asignatura, va.principal, va.estado
+FROM pro.vacante_asignatura va
+WHERE va.estado = 'A'
+  AND va.id_vacante IN (
+    SELECT va2.id_vacante
+    FROM pro.vacante_asignatura va2
+    WHERE va2.estado = 'A'
+    GROUP BY va2.id_vacante
+    HAVING COUNT(*) = 1
+);
+--
+-- UPDATE va
+-- SET va.principal = 1
+-- FROM pro.vacante_asignatura va
+-- WHERE va.estado = 'A'
+--   AND va.id_vacante IN (
+--     SELECT va2.id_vacante
+--     FROM pro.vacante_asignatura va2
+--     WHERE va2.estado = 'A'
+--     GROUP BY va2.id_vacante
+--     HAVING COUNT(*) = 1
+-- );
+
 
 select p.descripcion,pu.* from pro.proceso_usuario2 pu
                                    inner join pro.proceso_general pg on pu.id_proceso_general = pg.id_proceso_general
@@ -3134,7 +3310,7 @@ where pg.id_periodo_academico = 95 and p.id_proceso = 1 and pu2.estado='A'
 
 
 begin
-    declare @id_proceso_usuario int =5802,@estado as varchar(2)='A'
+    declare @id_proceso_usuario int =9409,@estado as varchar(2)='I'
 
     update pro.proceso_usuario2 set estado=@estado where id_proceso_usuario = @id_proceso_usuario
 --     select pu2.*
@@ -3323,6 +3499,194 @@ where er.id_evaluacion_rubrica in (1)
   and dce.id_docente_categoria = 4
 order by isnull(tce2.orden,10),dce.orden
 
-select d.etapaPadre,sum(d.calificacion) as calificacion,sum(d.ponderacion) as ponderacion
-from [pro].[fn_get_all_calificaciones_by_etapa_evaluacion]( $P{id_periodo_academico} , $P{id_proceso_usuario} ,null, $P{id_docente_categoria} ) as d
-group by  d.etapaPadre
+
+SELECT * FROM pro.vacante_actividad_docente
+
+select * from seg.roles where descripcion like '%IDIOMAS%'
+
+select * from pro.proceso_general where id_proceso_general = 105
+
+
+--POSTULANTES CON UN PERIODO
+SELECT d.nombre, o.descripcion, UPPER(v.asignatura) AS asignatura, dc.descripcion AS categoriaDocente,
+       p.id, p.identificacion, UPPER(CONCAT(p.apellidos, ' ', p.nombres)) AS postulante,
+       pu.id_proceso_usuario,
+       IIF(p.email_institucional IS NULL OR p.email_institucional = '', email_personal, email_institucional) AS email,
+       hd.periodo
+FROM pro.proceso_usuario2 pu
+         INNER JOIN pro.tipo_proceso_estado tpe ON pu.id_tipo_proceso_estado = tpe.id_tipo_proceso_estado
+         INNER JOIN man.personas p ON p.id = pu.id_persona
+         INNER JOIN mig.historial_docente hd ON hd.identificacion = p.identificacion
+         INNER JOIN pro.postulacion_vacante pv ON pv.id_proceso_usuario = pu.id_proceso_usuario
+         INNER JOIN pro.proceso_vacante prv ON prv.id_proceso_vacante = pv.id_proceso_vacante
+         INNER JOIN pro.vacante v ON v.id_vacante = prv.id_vacante
+         INNER JOIN aca.docente_categoria dc ON dc.id_docente_categoria = v.id_docente_categoria
+         INNER JOIN aca.oferta o ON o.id_oferta = v.id_oferta
+         INNER JOIN aca.departamento_oferta dof ON dof.id_oferta = o.id_oferta
+         INNER JOIN man.departamentos d ON dof.id_departamento = d.id
+         INNER JOIN pro.proceso_etapa_ejecucion2 pee2 ON pee2.id_proceso_usuario = pu.id_proceso_usuario
+WHERE pu.estado = 'A'
+  AND pv.estado = 'A'
+  AND prv.estado = 'A'
+  AND v.estado = 'A'
+  AND pee2.estado = 'A'
+  AND pee2.id_proceso_etapa = 2
+  AND pu.id_proceso_general = 105
+  AND p.identificacion IN
+      (
+          SELECT h.identificacion
+          FROM mig.historial_docente h
+          WHERE h.estado = 'A'
+          GROUP BY h.identificacion
+          HAVING COUNT(DISTINCT h.periodo) = 1
+      )
+GROUP BY d.nombre, o.descripcion, v.asignatura, p.id, p.identificacion, p.apellidos, p.nombres,
+         pu.id_proceso_usuario, v.id_docente_categoria, tpe.codigo, pee2.id_proceso_etapa_ejecucion,
+         p.email_institucional, email_personal, dc.descripcion, pee2.calificacion, hd.periodo;
+
+
+SELECT d.nombre, o.descripcion, UPPER(v.asignatura) AS asignatura, dc.descripcion AS categoriaDocente,
+       p.id, p.identificacion, UPPER(CONCAT(p.apellidos, ' ', p.nombres)) AS postulante,
+       pu.id_proceso_usuario,
+       IIF(p.email_institucional IS NULL OR p.email_institucional = '',
+           p.email_personal, p.email_institucional) AS email,
+
+    /*==============================================================*/
+    /* Tiene familiares registrados                                 */
+    /*==============================================================*/
+       IIF(
+               EXISTS
+                   (
+                       SELECT 1
+                       FROM pro.persona_parentesco pp
+                       WHERE pp.id_persona = p.id
+                         AND pp.estado = 'A'
+                   )
+                   OR EXISTS
+                   (
+                       SELECT 1
+                       FROM man.parentesco_externo pe
+                       WHERE pe.id_persona = p.id
+                         AND pe.estado = 'A'
+                   ),
+               1, 0
+       ) AS tieneFamiliares,
+
+    /*==============================================================*/
+    /* Tiene familiares que trabajan en la institución              */
+    /*==============================================================*/
+       IIF(
+               EXISTS
+                   (
+                       SELECT 1
+                       FROM pro.persona_parentesco pp
+                                INNER JOIN man.personas pr ON pr.id = pp.id_persona_relacionada
+                       WHERE pp.id_persona = p.id
+                         AND pp.estado = 'A'
+                         AND
+                           (
+                               EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.persona_puesto_asignacion ppa
+                                                INNER JOIN uath.jerarquia_puesto_trabajo j ON j.id_puesto = ppa.id_puesto
+                                       WHERE ppa.id_persona = pp.id_persona_relacionada
+                                         AND ppa.estado = 'A'
+                                         AND ppa.es_actual = 1
+                                         AND j.estado = 'A'
+                                   )
+                                   OR EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.trabajador_ipg tipg
+                                       WHERE tipg.id_persona = pp.id_persona_relacionada
+                                   )
+                                   OR EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.contratos_migracion_06_02_2024 cm
+                                       WHERE cm.identificacion = pr.identificacion
+                                         AND cm.EstadoContrato IN ('A', 'AC')
+                                   )
+                               )
+                   )
+                   OR EXISTS
+                   (
+                       SELECT 1
+                       FROM man.parentesco_externo pe
+                                LEFT JOIN man.personas pr ON pr.identificacion = pe.identificacion
+                       WHERE pe.id_persona = p.id
+                         AND pe.estado = 'A'
+                         AND
+                           (
+                               EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.persona_puesto_asignacion ppa
+                                                INNER JOIN uath.jerarquia_puesto_trabajo j ON j.id_puesto = ppa.id_puesto
+                                       WHERE ppa.id_persona = pr.id
+                                         AND ppa.estado = 'A'
+                                         AND ppa.es_actual = 1
+                                         AND j.estado = 'A'
+                                   )
+                                   OR EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.trabajador_ipg tipg
+                                       WHERE tipg.id_persona = pr.id
+                                   )
+                                   OR EXISTS
+                                   (
+                                       SELECT 1
+                                       FROM uath.contratos_migracion_06_02_2024 cm
+                                       WHERE cm.identificacion = pe.identificacion
+                                         AND cm.EstadoContrato IN ('A', 'AC')
+                                   )
+                               )
+                   ),
+               1, 0
+       ) AS tieneFamiliaresTrabajan,docs.totalDocumentos, docs.totalDocumentosSubidos
+
+FROM pro.proceso_usuario2 pu
+         INNER JOIN pro.tipo_proceso_estado tpe ON pu.id_tipo_proceso_estado = tpe.id_tipo_proceso_estado
+         INNER JOIN man.personas p ON p.id = pu.id_persona
+         INNER JOIN pro.postulacion_vacante pv ON pv.id_proceso_usuario = pu.id_proceso_usuario
+         INNER JOIN pro.proceso_vacante prv ON prv.id_proceso_vacante = pv.id_proceso_vacante
+         INNER JOIN pro.vacante v ON v.id_vacante = prv.id_vacante
+         INNER JOIN aca.docente_categoria dc ON dc.id_docente_categoria = v.id_docente_categoria
+         INNER JOIN aca.oferta o ON o.id_oferta = v.id_oferta
+         INNER JOIN aca.departamento_oferta dof ON dof.id_oferta = o.id_oferta
+         INNER JOIN man.departamentos d ON dof.id_departamento = d.id
+         INNER JOIN pro.proceso_etapa_ejecucion2 pee2 ON pee2.id_proceso_usuario = pu.id_proceso_usuario
+         iNNER JOIN pro.proceso_general pg ON pu.id_proceso_general = pg.id_proceso_general
+         INNER JOIN pro.proceso_calendario pc ON pc.id_proceso_general = pg.id_proceso_general AND pc.id_proceso_etapa = pee2.id_proceso_etapa
+         OUTER APPLY
+     (
+         SELECT COUNT(DISTINCT doc.descripcionRequisito) AS totalDocumentos,
+                COUNT(doc.id_etapa_ejecucion_documento) AS totalDocumentosSubidos
+         FROM pro.fn_list_documentos_postulante(pu.id_proceso_usuario) doc
+         WHERE pc.requiere_documento = 1
+     ) docs
+WHERE pu.estado = 'A'
+  AND pv.estado = 'A'
+  AND prv.estado = 'A'
+  AND v.estado = 'A'
+  AND pee2.estado = 'A'
+  AND pee2.id_proceso_etapa = 1
+  AND pu.id_proceso_general = 105
+GROUP BY d.nombre, o.descripcion, v.asignatura, p.id, p.identificacion, p.apellidos, p.nombres,
+         pu.id_proceso_usuario, v.id_docente_categoria, tpe.codigo, pee2.id_proceso_etapa_ejecucion,
+         p.email_institucional, p.email_personal, dc.descripcion, pee2.calificacion,docs.totalDocumentos, docs.totalDocumentosSubidos;
+
+select * from pro.fn_list_vacantes_by_proceso_general_and_user(105,2339)
+
+SELECT distinct RUO.oferta_id,r.descripcion
+FROM seg.roles_usuario_oferta RUO
+         INNER JOIN seg.roles_usuarios RU ON RUO.rol_usuario_id = RU.id
+inner join seg.roles r on RU.rol_id = r.id
+WHERE RU.usuario_id = 2339 and
+  RU.rol_id IN (27, 28, 124,23)
+  AND RUO.estado = 'AC'
+  AND RU.estado = 'AC'
+
+select * from seg.roles

@@ -180,6 +180,8 @@ select * from aud.AuditSchemaChanges where ObjectName='tr_aud_estudiante_calific
 
 select * from aud.AuditColumnChanges where cast(EventDate as date) = cast(getdate() as date)
 
+-- DBCC CHECKIDENT ('aud.AuditColumnChanges', RESEED, 17883)
+
 select d.id_registro, fecha_registro, hora_registro, reportado_por, rol_importante, sistema_afectado, tipo_evento, categoria_evento, descripcion_evento,
        severidad, estado_evento, responsable, fecha_asignacion, solucion_1, solucion_2, solucion_3, solucion_recomendada, fecha_resolucion,
        tiempo_Total_Resolución_Horas, observacion, aprobado_por, fecha_cierre from (
@@ -222,7 +224,7 @@ select * from aca.institucion
 
 --OBTENER REFERENCIAS AL OBJETO
 begin
-    DECLARE @ObjectName NVARCHAR(255) = 'fn_get_actividades_xcomponent_proyecto_inv'; -- Especifica el nombre del objeto
+    DECLARE @ObjectName NVARCHAR(255) = 'periodo_academico_oferta'; -- Especifica el nombre del objeto
     DECLARE @SchemaName NVARCHAR(255) = 'aca'; -- Especifica el esquema al que pertenece el objeto
 
     SELECT
@@ -253,8 +255,8 @@ end
 begin
 --     DECLARE @ColumnName NVARCHAR(128) = 'es_general';
 --     DECLARE @TableName NVARCHAR(128) = 'pro.docente_categoria_evaluacion';
-    DECLARE @ColumnName NVARCHAR(128) = 'id_asignacion_cupo';
-    DECLARE @TableName NVARCHAR(128) = 'asignacion_reubicacion';
+    DECLARE @ColumnName NVARCHAR(128) = 'cupo_nivelacion';
+    DECLARE @TableName NVARCHAR(128) = 'periodo_academico_oferta';
     DECLARE @SearchTerm NVARCHAR(256) = '%' + @ColumnName + '%';
 
 -- Buscar en procedimientos almacenados y funciones
